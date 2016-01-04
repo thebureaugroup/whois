@@ -4,6 +4,8 @@ import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IMap;
 import com.hazelcast.core.OperationTimeoutException;
+import com.hazelcast.map.EntryBackupProcessor;
+import com.hazelcast.map.EntryProcessor;
 import net.ripe.db.whois.common.profiles.DeployedProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,8 +15,7 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.net.InetAddress;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.Map;
 
 @DeployedProfile
 @Primary
@@ -70,22 +71,31 @@ public class HazelcastPersonalObjectAccounting implements PersonalObjectAccounti
 
     @Override
     public int accountPersonalObject(final InetAddress remoteAddress, final int amount) {
-        try {
-            Integer count = counterMap.tryLockAndGet(remoteAddress, 3, TimeUnit.SECONDS);
+        return (Integer)counterMap.executeOnKey(remoteAddress, new EntryProcessor<InetAddress, Integer>() {
+            @Override
+            public Integer process(Map.Entry<InetAddress, Integer> entry) {
+                Integer count = entry.getValue();
 
-            if (count == null) {
-                count = amount;
-            } else {
-                count += amount;
+                LOGGER.info("value for {} was {}", remoteAddress, count);
+
+                if (count == null) {
+                    count = amount;
+                } else {
+                    count += amount;
+                }
+
+                entry.setValue(count);
+
+                LOGGER.info("value for {} is now {}", remoteAddress, count);
+
+                return count;
             }
 
-            counterMap.putAndUnlock(remoteAddress, count);
-            return count;
-        } catch (TimeoutException e) {
-            LOGGER.info("Unable to account personal object, allowed by default");
-        }
-
-        return 0;
+            @Override
+            public EntryBackupProcessor getBackupProcessor() {
+                return null;
+            }
+        });
     }
 
     @Override
