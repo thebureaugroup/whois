@@ -1,5 +1,6 @@
 package net.ripe.db.whois.query.acl;
 
+import com.google.common.base.Stopwatch;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IMap;
@@ -55,6 +56,7 @@ public class HazelcastPersonalObjectAccounting implements PersonalObjectAccounti
 
     @Override
     public int getQueriedPersonalObjects(final InetAddress remoteAddress) {
+        final Stopwatch stopwatch = Stopwatch.createStarted();
         Integer count = null;
         try {
             count = counterMap.get(remoteAddress);
@@ -66,17 +68,18 @@ public class HazelcastPersonalObjectAccounting implements PersonalObjectAccounti
             return 0;
         }
 
+        LOGGER.warn("Get {} for {} in {}", count, remoteAddress, stopwatch);
         return count;
     }
 
     @Override
     public int accountPersonalObject(final InetAddress remoteAddress, final int amount) {
-        return (Integer)counterMap.executeOnKey(remoteAddress, new EntryProcessor<InetAddress, Integer>() {
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+
+        final Integer result = (Integer)counterMap.executeOnKey(remoteAddress, new EntryProcessor<InetAddress, Integer>() {
             @Override
             public Integer process(Map.Entry<InetAddress, Integer> entry) {
                 Integer count = entry.getValue();
-
-                LOGGER.info("value for {} was {}", remoteAddress, count);
 
                 if (count == null) {
                     count = amount;
@@ -86,8 +89,6 @@ public class HazelcastPersonalObjectAccounting implements PersonalObjectAccounti
 
                 entry.setValue(count);
 
-                LOGGER.info("value for {} is now {}", remoteAddress, count);
-
                 return count;
             }
 
@@ -96,6 +97,10 @@ public class HazelcastPersonalObjectAccounting implements PersonalObjectAccounti
                 return null;
             }
         });
+
+        LOGGER.warn("Account {} for {} in {}", result, remoteAddress, stopwatch);
+
+        return result;
     }
 
     @Override
