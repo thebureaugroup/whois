@@ -76,27 +76,7 @@ public class HazelcastPersonalObjectAccounting implements PersonalObjectAccounti
     public int accountPersonalObject(final InetAddress remoteAddress, final int amount) {
         final Stopwatch stopwatch = Stopwatch.createStarted();
 
-        final Integer result = (Integer)counterMap.executeOnKey(remoteAddress, new EntryProcessor<InetAddress, Integer>() {
-            @Override
-            public Integer process(Map.Entry<InetAddress, Integer> entry) {
-                Integer count = entry.getValue();
-
-                if (count == null) {
-                    count = amount;
-                } else {
-                    count += amount;
-                }
-
-                entry.setValue(count);
-
-                return count;
-            }
-
-            @Override
-            public EntryBackupProcessor getBackupProcessor() {
-                return null;
-            }
-        });
+        final Integer result = (Integer)counterMap.executeOnKey(remoteAddress, new AccountingEntryProcessor(amount));
 
         LOGGER.warn("Account {} for {} in {}", result, remoteAddress, stopwatch);
 
@@ -107,5 +87,34 @@ public class HazelcastPersonalObjectAccounting implements PersonalObjectAccounti
     public void resetAccounting() {
         LOGGER.debug("Reset person object counters ({} entries)", counterMap.size());
         counterMap.clear();
+    }
+
+    private static class AccountingEntryProcessor implements EntryProcessor<InetAddress, Integer> {
+
+        private final int amount;
+
+        public AccountingEntryProcessor(int amount) {
+            this.amount = amount;
+        }
+
+        @Override
+        public Integer process(Map.Entry<InetAddress, Integer> entry) {
+            Integer count = entry.getValue();
+
+            if (count == null) {
+                count = amount;
+            } else {
+                count += amount;
+            }
+
+            entry.setValue(count);
+
+            return count;
+        }
+
+        @Override
+        public EntryBackupProcessor getBackupProcessor() {
+            return null;
+        }
     }
 }
