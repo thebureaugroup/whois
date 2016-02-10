@@ -277,10 +277,11 @@
                 <artifactId>mail</artifactId>
                 <version>1.4.5</version>
             </dependency>
+            <!-- TODO: [ES] hazelcast 3.6 loses data on node shutdown -->
             <dependency>
                 <groupId>com.hazelcast</groupId>
                 <artifactId>hazelcast</artifactId>
-                <version>3.5.4</version>
+                <version>3.6</version>
             </dependency>
             <dependency>
                 <groupId>joda-time</groupId>
