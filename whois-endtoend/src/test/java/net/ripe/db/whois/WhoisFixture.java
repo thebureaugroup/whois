@@ -21,7 +21,6 @@ import net.ripe.db.whois.common.domain.IpRanges;
 import net.ripe.db.whois.common.domain.User;
 import net.ripe.db.whois.common.iptree.IpTreeUpdater;
 import net.ripe.db.whois.common.profiles.WhoisProfile;
-import net.ripe.db.whois.common.rpsl.ObjectTemplateProvider;
 import net.ripe.db.whois.common.rpsl.ObjectType;
 import net.ripe.db.whois.common.rpsl.RpslObject;
 import net.ripe.db.whois.common.source.SourceAwareDataSource;
@@ -32,7 +31,6 @@ import net.ripe.db.whois.common.support.WhoisClientHandler;
 import net.ripe.db.whois.db.WhoisServer;
 import net.ripe.db.whois.query.QueryServer;
 import net.ripe.db.whois.query.support.TestWhoisLog;
-import net.ripe.db.whois.scheduler.task.unref.UnrefCleanup;
 import net.ripe.db.whois.update.dao.PendingUpdateDao;
 import net.ripe.db.whois.update.dns.DnsGatewayStub;
 import net.ripe.db.whois.update.mail.MailGateway;
@@ -80,12 +78,10 @@ public class WhoisFixture {
     protected DatabaseHelper databaseHelper;
     protected IpTreeUpdater ipTreeUpdater;
     protected SourceContext sourceContext;
-    protected UnrefCleanup unrefCleanup;
     protected IndexDao indexDao;
     protected WhoisServer whoisServer;
     protected RestClient restClient;
     protected TestWhoisLog testWhoisLog;
-    protected ObjectTemplateProvider objectTemplateProvider;
 
     static {
         Slf4JLogConfiguration.init();
@@ -93,14 +89,11 @@ public class WhoisFixture {
         System.setProperty("application.version", "0.1-ENDTOEND");
         System.setProperty("mail.update.threads", "2");
         System.setProperty("mail.dequeue.interval", "10");
-        System.setProperty("whois.maintainers.power", "RIPE-NCC-HM-MNT");
         System.setProperty("whois.maintainers.enduser", "RIPE-NCC-END-MNT");
         System.setProperty("whois.maintainers.legacy", "RIPE-NCC-LEGACY-MNT");
         System.setProperty("whois.maintainers.alloc", "RIPE-NCC-HM-MNT,RIPE-NCC-HM2-MNT");
         System.setProperty("whois.maintainers.enum", "RIPE-GII-MNT,RIPE-NCC-MNT");
         System.setProperty("whois.maintainers.dbm", "RIPE-NCC-LOCKED-MNT,RIPE-DBM-MNT");
-        System.setProperty("unrefcleanup.enabled", "true");
-        System.setProperty("unrefcleanup.deletes", "true");
         System.setProperty("nrtm.enabled", "false");
         System.setProperty("grs.sources", "TEST-GRS");
         System.setProperty("feature.toggle.changed.attr.available", "true");
@@ -128,12 +121,9 @@ public class WhoisFixture {
         mailGateway = applicationContext.getBean(MailGateway.class);
         whoisDataSource = applicationContext.getBean(SourceAwareDataSource.class);
         sourceContext = applicationContext.getBean(SourceContext.class);
-        unrefCleanup = applicationContext.getBean(UnrefCleanup.class);
         indexDao = applicationContext.getBean(IndexDao.class);
         restClient = applicationContext.getBean(RestClient.class);
         testWhoisLog = applicationContext.getBean(TestWhoisLog.class);
-
-        objectTemplateProvider = applicationContext.getBean(ObjectTemplateProvider.class);
 
         databaseHelper.setup();
         whoisServer.start();
@@ -328,10 +318,6 @@ public class WhoisFixture {
 
     public SourceContext getSourceContext() {
         return sourceContext;
-    }
-
-    public void unrefCleanup() {
-        unrefCleanup.run();
     }
 
     public void rebuildIndexes() {

@@ -15,7 +15,6 @@ import net.ripe.db.whois.common.iptree.Ipv4Tree;
 import net.ripe.db.whois.common.iptree.Ipv6Tree;
 import net.ripe.db.whois.common.rpsl.AttributeType;
 import net.ripe.db.whois.common.rpsl.ObjectTemplate;
-import net.ripe.db.whois.common.rpsl.ObjectTemplateProvider;
 import net.ripe.db.whois.common.rpsl.ObjectType;
 import net.ripe.db.whois.common.rpsl.RpslObject;
 import net.ripe.db.whois.common.rpsl.attrs.Domain;
@@ -64,7 +63,7 @@ public class MntByAuthentication extends AuthenticationStrategyBase {
 
     @Override
     public boolean supports(final PreparedUpdate update) {
-        return ObjectTemplateProvider.getTemplate(update.getType()).hasAttribute(AttributeType.MNT_BY);
+        return ObjectTemplate.getTemplate(update.getType()).hasAttribute(AttributeType.MNT_BY);
     }
 
     @Override
@@ -199,7 +198,7 @@ public class MntByAuthentication extends AuthenticationStrategyBase {
     }
 
     private boolean hasRsMaintainer(final RpslObject object, final AttributeType attributeType) {
-        return !Sets.intersection(maintainers.getRsMaintainers(), object.getValuesForAttribute(attributeType)).isEmpty();
+        return maintainers.isRsMaintainer(object.getValuesForAttribute(attributeType));
     }
 
     private List<RpslObject> authenticateAddressSpaceHolder(final PreparedUpdate update, final UpdateContext updateContext, final RpslObject ipObject, final AuthenticationFailedException originalAuthenticationException) {

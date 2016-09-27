@@ -5,6 +5,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import net.ripe.db.whois.common.Message;
 import net.ripe.db.whois.common.Messages;
+import net.ripe.db.whois.common.domain.CIString;
 import net.ripe.db.whois.common.ip.Interval;
 import net.ripe.db.whois.common.ip.IpInterval;
 import net.ripe.db.whois.common.ip.Ipv4Resource;
@@ -14,6 +15,7 @@ import net.ripe.db.whois.common.rpsl.RpslObject;
 import net.ripe.db.whois.common.rpsl.attrs.Inet6numStatus;
 import net.ripe.db.whois.common.rpsl.attrs.OrgType;
 
+import java.util.Collection;
 import java.util.Set;
 
 import static net.ripe.db.whois.common.FormatHelper.prettyPrint;
@@ -246,6 +248,11 @@ public final class UpdateMessages {
         return new Message(Type.ERROR, "Changing \"%s:\" value requires administrative authorisation", attributeType.getName());
     }
 
+    public static Message canOnlyBeChangedByRipeNCC(final AttributeType attributeType) {
+        return new Message(Type.ERROR, "Attribute \"%s:\" can only be changed by the RIPE NCC for this object.\n" +
+                "Please contact \"ncc@ripe.net\" to change it.", attributeType.getName());
+    }
+
     public static Message orgAttributeMissing() {
         return new Message(Type.ERROR, "Missing required \"org:\" attribute");
     }
@@ -380,7 +387,7 @@ public final class UpdateMessages {
 
     // NOTE: this errormessage is being used by webupdates.
     public static Message authorisationRequiredForChangingRipeMaintainer() {
-        return new Message(Type.ERROR, "Adding or removing a RIPE NCC maintainer requires administrative authorisation");
+        return new Message(Type.ERROR, "You cannot add or remove a RIPE NCC maintainer");
     }
 
     public static Message poemRequiresPublicMaintainer() {
@@ -579,11 +586,35 @@ public final class UpdateMessages {
         return new Message(Type.ERROR, "This resource object must be created with a sponsoring-org attribute");
     }
 
-    public static Message valueChangedDueToLatin1Conversion(String attributeName) {
+    public static Message valueChangedDueToLatin1Conversion(final String attributeName) {
         return new Message(Type.WARNING, "Attribute \"%s\" value changed due to conversion into the ISO-8859-1 (Latin-1) character set", attributeName);
     }
 
     public static Message oldPasswordsRemoved() {
         return new Message(Type.WARNING, "MD5 passwords older than November 2011 were removed for one or more maintainers of this object, see: https://www.ripe.net/removed2011pw");
+    }
+
+    public static Message rpslMntbyForbidden() {
+        return new Message(Type.ERROR, "You cannot set mnt-by on this object to RIPE-NCC-RPSL-MNT");
+    }
+
+    public static Message netnameCannotBeChanged() {
+        return new Message(Type.ERROR, "The \"netname\" attribute can only be changed by the RIPE NCC");
+    }
+
+    public static Message descrCannotBeAdded() {
+        return new Message(Type.ERROR, "The first \"descr\" attribute can only be added by the RIPE NCC");
+    }
+
+    public static Message descrCannotBeChanged() {
+        return new Message(Type.ERROR, "The first \"descr\" attribute can only be changed by the RIPE NCC");
+    }
+
+    public static Message descrCannotBeRemoved() {
+        return new Message(Type.ERROR, "The first \"descr\" attribute can only be removed by the RIPE NCC");
+    }
+
+    public static Message multipleUserMntBy(final Collection<CIString> userMntners) {
+        return new Message(Type.ERROR, "Multiple user-'mnt-by:' are not allowed, found are: '%s'", Joiner.on(", ").join(userMntners));
     }
 }

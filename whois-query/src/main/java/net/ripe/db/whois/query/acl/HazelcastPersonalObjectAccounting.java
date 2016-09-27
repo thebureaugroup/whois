@@ -60,8 +60,8 @@ public class HazelcastPersonalObjectAccounting implements PersonalObjectAccounti
         Integer count = null;
         try {
             count = counterMap.get(remoteAddress);
-        } catch (OperationTimeoutException e) {
-            // prevents user from seeing "internal server error"
+        } catch (OperationTimeoutException | IllegalStateException e) {
+            // no answer from hazelcast, expected, don't rethrow
         }
 
         if (count == null) {
