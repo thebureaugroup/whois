@@ -40,6 +40,7 @@ public class HazelcastPersonalObjectAccounting implements PersonalObjectAccounti
     static void shutdownHazelcast() {
         LOGGER.debug("Shutting down hazelcast instance");
 
+        // instance.getPartitionService().forceLocalMemberToBeSafe(60, TimeUnit.SECONDS);   // TODO: test
         instance.getLifecycleService().shutdown();
         instance = null;
     }
