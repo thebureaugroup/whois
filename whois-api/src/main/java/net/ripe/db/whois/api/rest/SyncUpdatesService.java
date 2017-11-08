@@ -189,6 +189,7 @@ public class SyncUpdatesService {
             loggerContext.log("msg-in.txt", new SyncUpdateLogCallback(request.toString()));
 
             final UpdateContext updateContext = new UpdateContext(loggerContext);
+            updateContext.setBatchUpdate();
 
             setSsoSessionToContext(updateContext, request.getSsoToken());
 
