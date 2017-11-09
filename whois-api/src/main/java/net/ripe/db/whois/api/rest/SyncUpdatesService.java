@@ -31,6 +31,7 @@ import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.CookieParam;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.Encoded;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
@@ -92,6 +93,7 @@ public class SyncUpdatesService {
     public Response doGet(
             @Context final HttpServletRequest httpServletRequest,
             @PathParam(SOURCE) final String source,
+            @DefaultValue("false") @QueryParam("batch") final boolean batch,
             @Encoded @QueryParam(Command.DATA) final String data,
             @QueryParam(Command.HELP) final String help,
             @QueryParam(Command.NEW) final String nnew,
@@ -109,7 +111,7 @@ public class SyncUpdatesService {
                 .setSource(source)
                 .setSsoToken(crowdTokenKey)
                 .build();
-        return doSyncUpdate(httpServletRequest, request, getCharset(contentType));
+        return doSyncUpdate(httpServletRequest, request, getCharset(contentType), batch);
     }
 
     @POST
@@ -118,6 +120,7 @@ public class SyncUpdatesService {
     public Response doUrlEncodedPost(
             @Context final HttpServletRequest httpServletRequest,
             @PathParam(SOURCE) final String source,
+            @DefaultValue("false") @QueryParam("batch") final boolean batch,
             @FormParam(Command.DATA) final String data,
             @FormParam(Command.HELP) final String help,
             @FormParam(Command.NEW) final String nnew,
@@ -135,7 +138,7 @@ public class SyncUpdatesService {
                 .setSource(source)
                 .setSsoToken(crowdTokenKey)
                 .build();
-        return doSyncUpdate(httpServletRequest, request, getCharset(contentType));
+        return doSyncUpdate(httpServletRequest, request, getCharset(contentType), batch);
     }
 
     @POST
@@ -144,6 +147,7 @@ public class SyncUpdatesService {
     public Response doMultipartPost(
             @Context final HttpServletRequest httpServletRequest,
             @PathParam(SOURCE) final String source,
+            @DefaultValue("false") @QueryParam("batch") final boolean batch,
             @FormDataParam(Command.DATA) final String data,
             @FormDataParam(Command.HELP) final String help,
             @FormDataParam(Command.NEW) final String nnew,
@@ -161,10 +165,10 @@ public class SyncUpdatesService {
                 .setSource(source)
                 .setSsoToken(crowdTokenKey)
                 .build();
-        return doSyncUpdate(httpServletRequest, request, getCharset(contentType));
+        return doSyncUpdate(httpServletRequest, request, getCharset(contentType), batch);
     }
 
-    private Response doSyncUpdate(final HttpServletRequest httpServletRequest, final Request request, final Charset charset) {
+    private Response doSyncUpdate(final HttpServletRequest httpServletRequest, final Request request, final Charset charset, final boolean batch) {
         loggerContext.init(getRequestId(request.getRemoteAddress()));
 
         try {
@@ -189,7 +193,9 @@ public class SyncUpdatesService {
             loggerContext.log("msg-in.txt", new SyncUpdateLogCallback(request.toString()));
 
             final UpdateContext updateContext = new UpdateContext(loggerContext);
-            updateContext.setBatchUpdate();
+            if(batch) {
+                updateContext.setBatchUpdate();
+            }
 
             setSsoSessionToContext(updateContext, request.getSsoToken());
 

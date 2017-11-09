@@ -16,6 +16,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
 
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
@@ -313,6 +314,54 @@ public class SyncUpdatesServiceTestIntegration extends AbstractIntegrationTest {
 
         assertThat(response, containsString("Create SUCCEEDED: [person] FP1-TEST   First Person"));
         assertThat(response, containsString("Create SUCCEEDED: [person] SP1-TEST   Second Person"));
+    }
+
+    @Test
+    public void fail_to_create_multiple_objects_with_single_password_using_batch_mode() throws Exception {
+        databaseHelper.addObject(PERSON_ANY1_TEST);
+        databaseHelper.addObject(MNTNER_TEST_MNTNER);
+
+        final String firstPerson =
+                "person:        First Person\n" +
+                        "address:       Amsterdam\n" +
+                        "phone:         +31\n" +
+                        "nic-hdl:       FP1-TEST\n" +
+                        "mnt-by:        mntner\n" +
+                        "source:        TEST\n";
+        final String secondPerson =
+                "person:        Second Person\n" +
+                        "address:       Amsterdam\n" +
+                        "phone:         +31\n" +
+                        "nic-hdl:       SP1-TEST\n" +
+                        "mnt-by:        mntnerrrrrrrr\n" +
+                        "source:        TEST\n";
+
+        String response = RestTest.target(getPort(), "whois/syncupdates/test?batch=true&" +
+                "DATA=" + SyncUpdateUtils.encode(
+                firstPerson +
+                        "password: emptypassword\n\n\n" +
+                        secondPerson))
+                .request()
+                .cookie("crowd.token_key", "valid-token")
+                .get(String.class);
+
+
+        try {
+            databaseHelper.lookupObject(ObjectType.PERSON, "FP1-TEST");
+            fail("Object FP1-TEST should not have been created");
+        } catch (EmptyResultDataAccessException e) {
+        }
+
+        try {
+            databaseHelper.lookupObject(ObjectType.PERSON, "SP1-TEST");
+            fail("Object SP1-TEST should not have been created");
+        } catch (EmptyResultDataAccessException e) {
+        }
+
+        assertThat(response, containsString("Create SUCCEEDED: [person] FP1-TEST   First Person"));
+        assertThat(response, containsString("Create FAILED: [person] SP1-TEST   Second Person"));
+        assertThat(response, containsString("In case of one or more failures, all the request is rolled back"));
+
     }
 
     @Test

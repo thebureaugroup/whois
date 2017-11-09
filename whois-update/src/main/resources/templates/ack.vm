@@ -3,6 +3,10 @@ $origin.responseHeader
 >>>>>
 SUMMARY OF UPDATE:
 
+#if ($batchUpdate)
+    In case of one or more failures, all the request is rolled back
+
+#end
 Number of objects found:                   $ack.nrFound
 Number of objects processed successfully:  $ack.nrProcessedsuccessfully
   Create:         $ack.nrCreate

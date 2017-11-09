@@ -59,6 +59,7 @@ public class ResponseFactory {
 
         velocityContext.put("ack", ack);
         velocityContext.put("updateContext", updateContext);
+        velocityContext.put("batchUpdate", updateContext.isBatchUpdate());
 
         return createResponse(TEMPLATE_ACK, updateContext, velocityContext, origin);
     }
