@@ -19,6 +19,7 @@ import net.ripe.db.whois.update.domain.Keyword;
 import net.ripe.db.whois.update.domain.UpdateContext;
 import net.ripe.db.whois.update.domain.UpdateRequest;
 import net.ripe.db.whois.update.domain.UpdateResponse;
+import net.ripe.db.whois.update.domain.UpdateStatus;
 import net.ripe.db.whois.update.handler.UpdateRequestHandler;
 import net.ripe.db.whois.update.log.LogCallback;
 import net.ripe.db.whois.update.log.LoggerContext;
@@ -31,7 +32,6 @@ import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.CookieParam;
-import javax.ws.rs.DefaultValue;
 import javax.ws.rs.Encoded;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
@@ -93,7 +93,6 @@ public class SyncUpdatesService {
     public Response doGet(
             @Context final HttpServletRequest httpServletRequest,
             @PathParam(SOURCE) final String source,
-            @DefaultValue("false") @QueryParam("batch") final boolean batch,
             @Encoded @QueryParam(Command.DATA) final String data,
             @QueryParam(Command.HELP) final String help,
             @QueryParam(Command.NEW) final String nnew,
@@ -111,7 +110,7 @@ public class SyncUpdatesService {
                 .setSource(source)
                 .setSsoToken(crowdTokenKey)
                 .build();
-        return doSyncUpdate(httpServletRequest, request, getCharset(contentType), batch);
+        return doSyncUpdate(httpServletRequest, request, getCharset(contentType));
     }
 
     @POST
@@ -120,7 +119,6 @@ public class SyncUpdatesService {
     public Response doUrlEncodedPost(
             @Context final HttpServletRequest httpServletRequest,
             @PathParam(SOURCE) final String source,
-            @DefaultValue("false") @QueryParam("batch") final boolean batch,
             @FormParam(Command.DATA) final String data,
             @FormParam(Command.HELP) final String help,
             @FormParam(Command.NEW) final String nnew,
@@ -138,7 +136,7 @@ public class SyncUpdatesService {
                 .setSource(source)
                 .setSsoToken(crowdTokenKey)
                 .build();
-        return doSyncUpdate(httpServletRequest, request, getCharset(contentType), batch);
+        return doSyncUpdate(httpServletRequest, request, getCharset(contentType));
     }
 
     @POST
@@ -147,7 +145,6 @@ public class SyncUpdatesService {
     public Response doMultipartPost(
             @Context final HttpServletRequest httpServletRequest,
             @PathParam(SOURCE) final String source,
-            @DefaultValue("false") @QueryParam("batch") final boolean batch,
             @FormDataParam(Command.DATA) final String data,
             @FormDataParam(Command.HELP) final String help,
             @FormDataParam(Command.NEW) final String nnew,
@@ -165,10 +162,33 @@ public class SyncUpdatesService {
                 .setSource(source)
                 .setSsoToken(crowdTokenKey)
                 .build();
-        return doSyncUpdate(httpServletRequest, request, getCharset(contentType), batch);
+        return doSyncUpdate(httpServletRequest, request, getCharset(contentType));
     }
 
-    private Response doSyncUpdate(final HttpServletRequest httpServletRequest, final Request request, final Charset charset, final boolean batch) {
+    @POST
+    @Path("/batch/{source}")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public Response doBatchMultipartPost(
+            @Context final HttpServletRequest httpServletRequest,
+            @PathParam(SOURCE) final String source,
+            @FormDataParam(Command.DATA) final String data,
+            @FormDataParam(Command.HELP) final String help,
+            @FormDataParam(Command.NEW) final String nnew,
+            @FormDataParam(Command.DIFF) final String diff,
+            @FormDataParam(Command.REDIRECT) final String redirect,
+            @HeaderParam(HttpHeaders.CONTENT_TYPE) final String contentType,
+            @CookieParam("crowd.token_key") final String crowdTokenKey) {
+        final Request request = new Request.RequestBuilder()
+                .setData(data)
+                .setNew(nnew)
+                .setHelp(help)
+                .setRedirect(redirect)
+                .setDiff(diff)
+                .setRemoteAddress(httpServletRequest.getRemoteAddr())
+                .setSource(source)
+                .setSsoToken(crowdTokenKey)
+                .build();
+
         loggerContext.init(getRequestId(request.getRemoteAddress()));
 
         try {
@@ -193,9 +213,67 @@ public class SyncUpdatesService {
             loggerContext.log("msg-in.txt", new SyncUpdateLogCallback(request.toString()));
 
             final UpdateContext updateContext = new UpdateContext(loggerContext);
-            if(batch) {
-                updateContext.setBatchUpdate();
+            updateContext.setBatchUpdate();
+
+            setSsoSessionToContext(updateContext, request.getSsoToken());
+
+            final String content = request.hasParam("DATA") ? request.getParam("DATA") : "";
+
+            final UpdateRequest updateRequest = new UpdateRequest(
+                    new SyncUpdate(dateTimeProvider, request.getRemoteAddress()),
+                    getKeyword(request),
+                    updatesParser.parse(updateContext, Lists.newArrayList(new ContentWithCredentials(content, getCharset(contentType)))));
+
+
+            final UpdateResponse updateResponse = updateRequestHandler.handle(updateRequest, updateContext);
+
+            loggerContext.log("msg-out.txt", new SyncUpdateLogCallback(updateResponse.getResponse()));
+
+            if(updateResponse.getStatus() == UpdateStatus.FAILED_AUTHENTICATION) {
+                return Response.status(Response.Status.UNAUTHORIZED).build();
             }
+
+            if(updateResponse.getStatus() == UpdateStatus.EXCEPTION) {
+                return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+            }
+
+            if(updateResponse.getStatus() == UpdateStatus.FAILED) {
+                return Response.status(Response.Status.BAD_REQUEST).entity(updateResponse.getResponse()).build();
+            }
+
+            // updateResponse.getStatus() == UpdateStatus.SUCCESS || updateResponse.getStatus() == UpdateStatus.PENDING_AUTHENTICATION
+            return Response.status(Response.Status.OK).entity(updateResponse.getResponse()).build();
+        } finally {
+            loggerContext.remove();
+        }
+
+    }
+
+    private Response doSyncUpdate(final HttpServletRequest httpServletRequest, final Request request, final Charset charset) {
+        loggerContext.init(getRequestId(request.getRemoteAddress()));
+
+        try {
+            loggerContext.log(new HttpRequestMessage(httpServletRequest));
+
+            if (!sourceMatchesContext(request.getSource())) {
+                return Response.status(Response.Status.BAD_REQUEST).entity("Invalid source specified: " + request.getSource()).build();
+            }
+
+            if (request.isParam(Command.DIFF)) {
+                return Response.status(Response.Status.BAD_REQUEST).entity("the DIFF method is not actually supported by the Syncupdates interface").build();
+            }
+
+            if (!request.hasParam(Command.DATA) && request.isParam(Command.NEW)) {
+                return Response.status(Response.Status.BAD_REQUEST).entity("DATA parameter is missing").build();
+            }
+
+            if (!request.hasParam(Command.DATA) && !request.isParam(Command.HELP)) {
+                return Response.status(Response.Status.BAD_REQUEST).entity("Invalid request").build();
+            }
+
+            loggerContext.log("msg-in.txt", new SyncUpdateLogCallback(request.toString()));
+
+            final UpdateContext updateContext = new UpdateContext(loggerContext);
 
             setSsoSessionToContext(updateContext, request.getSsoToken());
 

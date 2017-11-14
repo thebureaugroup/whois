@@ -23,6 +23,7 @@ import javax.mail.internet.MimeMessage;
 import javax.ws.rs.BadRequestException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -323,28 +324,31 @@ public class SyncUpdatesServiceTestIntegration extends AbstractIntegrationTest {
 
         final String firstPerson =
                 "person:        First Person\n" +
-                        "address:       Amsterdam\n" +
-                        "phone:         +31\n" +
-                        "nic-hdl:       FP1-TEST\n" +
-                        "mnt-by:        mntner\n" +
-                        "source:        TEST\n";
+                "address:       Amsterdam\n" +
+                "phone:         +31\n" +
+                "nic-hdl:       FP1-TEST\n" +
+                "mnt-by:        mntner\n" +
+                "source:        TEST\n";
         final String secondPerson =
                 "person:        Second Person\n" +
-                        "address:       Amsterdam\n" +
-                        "phone:         +31\n" +
-                        "nic-hdl:       SP1-TEST\n" +
-                        "mnt-by:        mntnerrrrrrrr\n" +
-                        "source:        TEST\n";
+                "address:       Amsterdam\n" +
+                "phone:         +31\n" +
+                "nic-hdl:       SP1-TEST\n" +
+                "mnt-by:        mntnerrrrrrrr\n" +
+                "source:        TEST\n";
 
-        String response = RestTest.target(getPort(), "whois/syncupdates/test?batch=true&" +
-                "DATA=" + SyncUpdateUtils.encode(
-                firstPerson +
-                        "password: emptypassword\n\n\n" +
-                        secondPerson))
+        final FormDataMultiPart multipart = new FormDataMultiPart().field("DATA", firstPerson +"\n" + secondPerson + "\npassword: emptypassword");
+
+        final Response response = RestTest.target(getPort(), "whois/syncupdates/batch/test")
                 .request()
                 .cookie("crowd.token_key", "valid-token")
-                .get(String.class);
+                .post(Entity.entity(multipart, multipart.getMediaType()));
 
+        final String responseBody = response.readEntity(String.class);
+
+        assertThat(responseBody, containsString("Create SUCCEEDED: [person] FP1-TEST   First Person"));
+        assertThat(responseBody, containsString("Create FAILED: [person] SP1-TEST   Second Person"));
+        assertThat(responseBody, containsString("In case of one or more failures, all the request is rolled back"));
 
         try {
             databaseHelper.lookupObject(ObjectType.PERSON, "FP1-TEST");
@@ -357,10 +361,6 @@ public class SyncUpdatesServiceTestIntegration extends AbstractIntegrationTest {
             fail("Object SP1-TEST should not have been created");
         } catch (EmptyResultDataAccessException e) {
         }
-
-        assertThat(response, containsString("Create SUCCEEDED: [person] FP1-TEST   First Person"));
-        assertThat(response, containsString("Create FAILED: [person] SP1-TEST   Second Person"));
-        assertThat(response, containsString("In case of one or more failures, all the request is rolled back"));
 
     }
 
