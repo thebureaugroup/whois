@@ -1,6 +1,5 @@
 package net.ripe.db.whois.compare.telnet;
 
-import com.google.common.base.Stopwatch;
 import com.google.common.collect.Lists;
 import com.google.common.io.ByteStreams;
 import net.ripe.db.whois.common.domain.ResponseObject;
@@ -34,17 +33,7 @@ public class TelnetQueryExecutor implements ComparisonExecutor {
 
     @Override
     public List<ResponseObject> getResponse(final String query) throws IOException {
-
-        final String response;
-
-        final Stopwatch stopWatch = Stopwatch.createStarted();
-        try {
-            response = telnetWhoisClient.sendQuery(query);
-        } finally {
-            stopWatch.stop();
-        }
-
-        return parseWhoisResponseIntoRpslObjects(query, response);
+        return parseWhoisResponseIntoRpslObjects(query, telnetWhoisClient.sendQuery(query));
     }
 
     private List<ResponseObject> parseWhoisResponseIntoRpslObjects(final String query, final String response) throws IOException {
