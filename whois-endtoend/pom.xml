@@ -61,6 +61,11 @@
             <artifactId>whois-nrtm</artifactId>
             <type>test-jar</type>
         </dependency>
+        <dependency>
+          <groupId>org.apache.commons</groupId>
+          <artifactId>commons-math</artifactId>
+          <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
