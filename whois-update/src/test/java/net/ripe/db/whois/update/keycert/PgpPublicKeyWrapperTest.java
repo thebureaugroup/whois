@@ -1,8 +1,24 @@
 package net.ripe.db.whois.update.keycert;
 
+import com.google.common.collect.Lists;
 import net.ripe.db.whois.common.DateTimeProvider;
 import net.ripe.db.whois.common.rpsl.RpslObject;
+import org.apache.commons.io.Charsets;
 import org.apache.commons.io.IOUtils;
+import org.bouncycastle.bcpg.ArmoredInputStream;
+import org.bouncycastle.bcpg.SignatureSubpacketTags;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPKeyFlags;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.PGPPublicKeyRing;
+import org.bouncycastle.openpgp.PGPSignature;
+import org.bouncycastle.openpgp.PGPSignatureList;
+import org.bouncycastle.openpgp.PGPSignatureSubpacketVector;
+import org.bouncycastle.openpgp.PGPUtil;
+import org.bouncycastle.openpgp.bc.BcPGPObjectFactory;
+import org.bouncycastle.openpgp.bc.BcPGPPublicKeyRingCollection;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.joda.time.LocalDateTime;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,7 +27,12 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.core.io.ClassPathResource;
 
+import javax.annotation.Nullable;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.security.Provider;
+import java.util.Iterator;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -23,6 +44,8 @@ import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PgpPublicKeyWrapperTest {
+
+    private static final Provider PROVIDER = new BouncyCastleProvider();
 
     @Mock DateTimeProvider dateTimeProvider;
 
@@ -185,6 +208,189 @@ public class PgpPublicKeyWrapperTest {
             assertThat(e.getMessage(), is("The supplied key is revoked"));
         }
     }
+
+    //
+    // test processing a revocation certificate to revoke a pgp key in a keycert object.
+    //
+
+    @Test
+    public void revocationCerificate() throws Exception {
+        final String publicKeyBlock =
+            "-----BEGIN PGP PUBLIC KEY BLOCK-----\n" +
+            "Comment: GPGTools - http://gpgtools.org\n" +
+            "\n" +
+            "mQENBFv0Nn4BCADGQGpCdloTOmVjaN5hjI89ECvrP6F2tMs0fH77tI3GprYuHkvS\n" +
+            "35Q1PqR3D0TAdyuNRwrFqMxTZZT94bS3Nrq3ljskkeRm6Npic7DfGzFlvCYA4WJR\n" +
+            "UXPuRARQ0ds25pVf8tUGpeJ/DG/y1nqh0keESOWF3R/yEghvZBE8zXWqNEIEso+u\n" +
+            "id5hcahhkwCd6LzTX5xzjPxWU8N1Q7Lu2LNMGftHQfc7GyaYuH8hLu4HrJvckuiu\n" +
+            "oF6gPuFq3EepXjH5BcxbmB4rka/5wnVu4qGJiLonqpWnhBlro2DvpxKluEbAH0oD\n" +
+            "TzJSCIZKi3DZYNrMnTybrA9ITf0jpnIDQwK5ABEBAAG0GVRlc3QgVXNlciA8dGVz\n" +
+            "dEByaXBlLm5ldD6JAVQEEwEIAD4WIQTqZ6Wh5dthPY/Wmdm1qXwMtBR2ugUCW/Q2\n" +
+            "fgIbAwUJA8JnAAULCQgHAgYVCgkICwIEFgIDAQIeAQIXgAAKCRC1qXwMtBR2ukAX\n" +
+            "B/0V8PvB+p4MrhwuMDhqFmL0l/GcLoKiqUZSh7QpqOSzoIrwfdoOXcrJwBBe2fdH\n" +
+            "m68u1LMP2+qokk5jrJ4e/vmSOVCBVUwABI2A9tTa9Z2WW3v0nCzm2w10NpmTcCUb\n" +
+            "xEY1wsKBgXmCbxHxk7X0FwqlD6kXEaouJMfh7jF54GAj7mZwbysSzABsiHqX4fPr\n" +
+            "wox8b5nbjSHI142kiWW1FxVUbraKnQJgPO6+E1ar4dap/Z9FkAChtffwlhcw80ic\n" +
+            "zD2zBnG8c2Rsn7pkfT1qCDsYokvOjgD0L1viC/m+7WMyPzbY5FAnrW7I1JM/HUzg\n" +
+            "I5wWpfXg1APL10eV9aqksz1EuQENBFv0Nn4BCAC8fJimY6pkcGpxWdxtKOJIlKFQ\n" +
+            "hitADedWq4Gn9XsApSqIfHYODgKxJ2ZLiY+uhcU9tcfLf/1XQNslwdcTTG6dM+fF\n" +
+            "W/lm5JtlD6vLOXb4igYYh1CdLrqFaFO9xvswlPgaXT3mWp7m61plyC167mJCbW1o\n" +
+            "livLNd2z6JAJMbxSQaaZW1QaDz534AltmiX+dbtRKjNg5kfQffa14NkU7NCPLnAl\n" +
+            "5UgjiKO2JNLl3onIIaT3a5cUV9qXACLBCiXoPfEZQqFR047f8TDCyiZupkdpWP5P\n" +
+            "kJsAkC+MA/EMPeP7NXk4nqCWkjvAPXawMNRL77n9t/znA8Jgp0AWCLI2M1hfABEB\n" +
+            "AAGJATwEGAEIACYWIQTqZ6Wh5dthPY/Wmdm1qXwMtBR2ugUCW/Q2fgIbDAUJA8Jn\n" +
+            "AAAKCRC1qXwMtBR2ui43B/9taJHxhwT6TlJUQZZjcC+1gPcHqI7DYA+ADcn/U92I\n" +
+            "zteWxEwlrkGnk0T57ay8ZqJCvlTJwmrHqG8VIkt6mARbg0X/onvwoAeu7zHYKfGP\n" +
+            "kMPx5PbuqBhFG6YRuovgZB/URTSqeu0+sHJoCj4RAjvtkyD3gMH6AVss5irXxKDV\n" +
+            "iSvGHUhD54reIJ1ypJjgeeDrH6C87v9RXSt98mbNIDMkkH4CpZ/+ixF6/7wENHJz\n" +
+            "ePHgWgsRQGZidr9w0dHNgzK2CRzekS4enr1tofc3HdqxCoMw1Rh1l6FTDOEhK8el\n" +
+            "6l8+hev49IP08e7zu5RTW8j0kyZFO1JqW9teOW5ooHRx\n" +
+            "=zR5W\n" +
+            "-----END PGP PUBLIC KEY BLOCK-----";
+
+        final PGPPublicKey masterKey = getMasterKey(publicKeyBlock);
+        assertThat(masterKey.hasRevocation(), is(false));
+
+        final String revocationCertificate =
+            "-----BEGIN PGP PUBLIC KEY BLOCK-----\n" +
+                    "Comment: GPGTools - http://gpgtools.org\n" +
+                    "Comment: This is a revocation certificate\n" +
+                    "\n" +
+                    "iQE9BCABCAAnFiEE6meloeXbYT2P1pnZtal8DLQUdroFAlv0NrkJHQJUZXN0aW5n\n" +
+                    "AAoJELWpfAy0FHa6/cQH/31Y/x9bA7BQcuEDNpRBuLZZ02/bkMzMQpCAQUxIzGmz\n" +
+                    "kVoGTlYuktwX9K44phMIwVTz781AT3C1OsKxN3dX94y1oH6+63MEo/bB7G14mjeK\n" +
+                    "0uxQKeiGlUdllA6VYyWhe3qMhqV19BJyicCIzwDxTTZqq8sYFqF179yqohORFJcn\n" +
+                    "eKykwb2L83bIgbpLPN6kuAac8LP/TXO0WtxFFsbKIjwCQQL2o+guLdhjOPk2PZnj\n" +
+                    "yrNy9825f6duOjV58usiNoGZ3MJOKohRjNZ75yHBap1BzNptTziL7xnyuKHE6Flm\n" +
+                    "QjoB0E3anREe/pqjJWVkcf1/d39HkPeNa7t0Wk/bDC8=\n" +
+                    "=Fu/+\n" +
+                    "-----END PGP PUBLIC KEY BLOCK-----";
+
+        final PGPSignature revocation = getRevocation(revocationCertificate);
+
+         assertThat(revoke(masterKey, revocation).hasRevocation(), is(true));
+    }
+
+    private PGPPublicKey revoke(final PGPPublicKey pgpPublicKey, final PGPSignature revocation) {
+        try {
+            JcaPGPContentVerifierBuilderProvider provider = new JcaPGPContentVerifierBuilderProvider().setProvider(PROVIDER);
+            revocation.init(provider, pgpPublicKey);
+
+            if (!revocation.verifyCertification(pgpPublicKey)) {
+                throw new IllegalStateException("Revocation certificate is not valid");
+            }
+
+            return PGPPublicKey.addCertification(pgpPublicKey, revocation);
+        } catch (PGPException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+
+    @Nullable
+    private PGPPublicKey getMasterKey(final String block) {
+        try {
+            final ArmoredInputStream armoredInputStream = (ArmoredInputStream) PGPUtil.getDecoderStream(new ByteArrayInputStream(block.getBytes()));
+            PGPPublicKey masterKey = null;
+            List<PGPPublicKey> subKeys = Lists.newArrayList();
+
+            @SuppressWarnings("unchecked")
+            final Iterator<PGPPublicKeyRing> keyRingsIterator = new BcPGPPublicKeyRingCollection(armoredInputStream).getKeyRings();
+            while (keyRingsIterator.hasNext()) {
+                @SuppressWarnings("unchecked")
+                final Iterator<PGPPublicKey> keyIterator = keyRingsIterator.next().getPublicKeys();
+                while (keyIterator.hasNext()) {
+                    final PGPPublicKey key = keyIterator.next();
+                    if (key.isMasterKey()) {
+                        if (masterKey == null) {
+                            if (key.hasRevocation()) {
+                                throw new IllegalArgumentException("The supplied key is revoked");
+                            }
+
+                            masterKey = key;
+                        } else {
+                            throw new IllegalArgumentException("The supplied object has multiple keys");
+                        }
+                    } else {
+                        if (masterKey == null) {
+                            continue;
+                        }
+
+                        if (key.isRevoked()) {
+                            continue;
+                        }
+
+                        // RFC 4880: verify subkey binding signature issued by the top-level key
+                        final Iterator<PGPSignature> signatureIterator = key.getSignaturesOfType(PGPSignature.SUBKEY_BINDING);
+                        while (signatureIterator.hasNext()) {
+                            final PGPSignature signature = signatureIterator.next();
+
+                            if (!hasFlag(signature, PGPKeyFlags.CAN_SIGN)) {
+                                // cannot sign with this subkey, skip it
+                                continue;
+                            }
+
+                            JcaPGPContentVerifierBuilderProvider provider = new JcaPGPContentVerifierBuilderProvider().setProvider(PROVIDER);
+                            signature.init(provider, masterKey);
+                            try {
+                                if (signature.verifyCertification(masterKey, key)) {
+                                    subKeys.add(key);
+                                }
+                            } catch (PGPException e) {
+                                throw new IllegalStateException(e);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (masterKey == null) {
+                throw new IllegalArgumentException("The supplied object has no key");
+            }
+
+            return masterKey;
+
+        } catch (IOException e) {
+            throw new IllegalArgumentException("The supplied object has no key");
+        } catch (PGPException e) {
+            throw new IllegalArgumentException("The supplied object has no key");
+        }
+    }
+
+    static boolean hasFlag(final PGPSignature signature, final int flag) {
+        if (signature.hasSubpackets()) {
+            PGPSignatureSubpacketVector subpacketVector = signature.getHashedSubPackets();
+            if (subpacketVector.hasSubpacket(SignatureSubpacketTags.KEY_FLAGS)) {
+                if ((subpacketVector.getKeyFlags() & flag) > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Nullable
+    private PGPSignature getRevocation(final String block) {
+        try {
+            final byte[] bytes = block.getBytes(Charsets.ISO_8859_1);
+            final Iterator iterator = new BcPGPObjectFactory(PGPUtil.getDecoderStream(new ByteArrayInputStream(bytes))).iterator();
+            while (iterator.hasNext()) {
+                final Object next = iterator.next();
+                if (next instanceof PGPSignatureList) {
+                    for (PGPSignature pgpSignature : (PGPSignatureList)next) {
+                        if (pgpSignature.getSignatureType() == PGPSignature.KEY_REVOCATION) {
+                            return pgpSignature;
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            // ignore
+        }
+
+        return null;
+    }
+
 
     private String getResource(final String resourceName) throws IOException {
         return IOUtils.toString(new ClassPathResource(resourceName).getInputStream());
