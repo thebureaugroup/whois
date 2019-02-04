@@ -100,11 +100,11 @@ public class UpdateRequestHandler {
                     updateNotifier.sendNotifications(updateRequest, updateContext);
                 }
             } else {
-                processUpdateQueueOneByOne(updateRequest, updateContext);
+                processUpdateQueueOneByOne(updateRequest, updateContext);       // TODO: 67ms
 
                 // Create update response before sending notifications, so in case of an exception
                 // while creating the response we didn't send any notifications
-                updateResponse = createUpdateResponse(updateRequest, updateContext);
+                updateResponse = createUpdateResponse(updateRequest, updateContext);    // TODO: 41ms
 
                 updateNotifier.sendNotifications(updateRequest, updateContext);
             }
@@ -158,8 +158,8 @@ public class UpdateRequestHandler {
 
             try {
                 loggerContext.logUpdateStarted(update);
-                singleUpdateHandler.handle(updateRequest.getOrigin(), updateRequest.getKeyword(), update, updateContext);
                 loggerContext.logUpdateCompleted(update);
+                singleUpdateHandler.handle(updateRequest.getOrigin(), updateRequest.getKeyword(), update, updateContext);   // TODO: 62ms
             } catch (UpdateAbortedException e) {
                 loggerContext.logUpdateCompleted(update);
             } catch (UpdateFailedException e) {

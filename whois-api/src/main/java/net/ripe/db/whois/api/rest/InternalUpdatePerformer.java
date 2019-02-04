@@ -91,7 +91,7 @@ public class InternalUpdatePerformer {
         loggerContext.log("msg-in.txt", new UpdateLogCallback(updates));
 
         // todo: [TK] use response?
-        updateRequestHandler.handle(new UpdateRequest(origin, keyword, updates), updateContext);
+        updateRequestHandler.handle(new UpdateRequest(origin, keyword, updates), updateContext);        // TODO: +97ms
 
         return performUpdates(request, updateContext, updates);
     }

@@ -111,7 +111,7 @@ public class SingleUpdateHandler {
             throw new UpdateFailedException();
         }
 
-        // apply object transformation
+        // apply object transformation  TODO: transformers takes 8ms
         RpslObject updatedObjectWithAutoKeys = updatedObject;
         for (Transformer transformer : transformers) {
             updatedObjectWithAutoKeys = transformer.transform(updatedObjectWithAutoKeys, update, updateContext, action);
@@ -120,7 +120,7 @@ public class SingleUpdateHandler {
         preparedUpdate = new PreparedUpdate(update, originalObject, updatedObjectWithAutoKeys, action, overrideOptions);
 
         // add authentication to context
-        authenticator.authenticate(origin, preparedUpdate, updateContext);
+        authenticator.authenticate(origin, preparedUpdate, updateContext);      // TODO: authenticate takes 17ms
 
         // attributegenerators rely on authentication info
         for (AttributeGenerator attributeGenerator : attributeGenerators) {
@@ -149,7 +149,7 @@ public class SingleUpdateHandler {
         if (updateContext.isDryRun() && !updateContext.isBatchUpdate()) {
             throw new UpdateAbortedException();
         } else {
-            updateObjectHandler.execute(preparedUpdate, updateContext);
+            updateObjectHandler.execute(preparedUpdate, updateContext);     // TODO: execute takes 9ms
         }
     }
 

@@ -220,7 +220,8 @@ public class WhoisRestService {
 
         try {
             final Origin origin = updatePerformer.createOrigin(request);
-            final UpdateContext updateContext = updatePerformer.initContext(origin, crowdTokenKey);
+
+            final UpdateContext updateContext = updatePerformer.initContext(origin, crowdTokenKey);     // TODO: takes 14ms
 
             auditLogRequest(request);
 
@@ -228,7 +229,7 @@ public class WhoisRestService {
             setDryRun(updateContext, dryRun);
 
             final RpslObject submittedObject = getSubmittedObject(request, resource, isQueryParamSet(unformatted));
-            validateSubmittedCreateObject(request, submittedObject, objectType);
+            validateSubmittedCreateObject(request, submittedObject, objectType);            // TODO: takes 7ms
 
             final Update update = updatePerformer.createUpdate(updateContext, submittedObject, passwords, null, override);
 
