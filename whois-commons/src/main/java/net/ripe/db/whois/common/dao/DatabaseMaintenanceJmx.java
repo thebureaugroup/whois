@@ -71,7 +71,7 @@ public class DatabaseMaintenanceJmx extends JmxBase {
     public String rebuildIndexesForObject(final int objectId, final String comment) {
         return invokeOperation("Rebuild indexes for object: " + objectId, comment, new Callable<String>() {
             @Override
-            public String call() throws Exception {
+            public String call() {
                 indexDao.rebuildForObject(objectId);
                 return "Rebuilt indexes for object: " + objectId;
             }
@@ -104,7 +104,7 @@ public class DatabaseMaintenanceJmx extends JmxBase {
     public void pause() {
         invokeOperation("Pause rebuild indexes", "", new Callable<Void>() {
             @Override
-            public Void call() throws Exception {
+            public Void call() {
                 indexDao.pause();
                 return null;
             }
@@ -115,7 +115,7 @@ public class DatabaseMaintenanceJmx extends JmxBase {
     public void resume() {
         invokeOperation("Resume rebuild indexes", "", new Callable<Void>() {
             @Override
-            public Void call() throws Exception {
+            public Void call() {
                 indexDao.resume();
                 return null;
             }
