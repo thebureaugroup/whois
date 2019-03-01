@@ -84,7 +84,7 @@ public class DatabaseMaintenanceJmx extends JmxBase {
             @ManagedOperationParameter(name = "comment", description = "Optional comment for invoking the operation")
     })
     public void rebuildIndexesForAttributeType(final String attributeType, final String comment) {
-        backgroundOperation("Rebuild indexes for specified attribute type", comment, new Callable<Void>() {
+        backgroundOperation("Rebuild indexes for attribute type: " + attributeType, comment, new Callable<Void>() {
             @Override
             public Void call() {
                 final AttributeType value;
