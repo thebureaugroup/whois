@@ -2,6 +2,7 @@ package net.ripe.db.whois.common.dao;
 
 import net.ripe.db.whois.common.dao.jdbc.IndexDao;
 import net.ripe.db.whois.common.jmx.JmxBase;
+import net.ripe.db.whois.common.rpsl.AttributeType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,6 +74,28 @@ public class DatabaseMaintenanceJmx extends JmxBase {
             public String call() throws Exception {
                 indexDao.rebuildForObject(objectId);
                 return "Rebuilt indexes for object: " + objectId;
+            }
+        });
+    }
+
+    @ManagedOperation(description = "Rebuild indexes for specified attribute type based on objects in last")
+    @ManagedOperationParameters({
+            @ManagedOperationParameter(name = "attributeType", description = "Attribute type"),
+            @ManagedOperationParameter(name = "comment", description = "Optional comment for invoking the operation")
+    })
+    public void rebuildIndexesForAttributeType(final String attributeType, final String comment) {
+        backgroundOperation("Rebuild indexes for specified attribute type", comment, new Callable<String>() {
+            @Override
+            public String call() {
+                final AttributeType value;
+                try {
+                    value = AttributeType.valueOf(attributeType);
+                } catch (IllegalArgumentException e) {
+                    return String.format("Invalid attribute type: %s", attributeType);
+                }
+
+                indexDao.rebuild(value);
+                return String.format("Rebuilt indexes for attribute type: %s", attributeType);
             }
         });
     }

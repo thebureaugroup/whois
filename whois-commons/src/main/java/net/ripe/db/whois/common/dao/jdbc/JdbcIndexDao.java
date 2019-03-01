@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+@SuppressWarnings("Duplicates")
 @Component
 public class JdbcIndexDao implements IndexDao {
     private static final Logger LOGGER = LoggerFactory.getLogger(JdbcIndexDao.class);
@@ -65,6 +66,15 @@ public class JdbcIndexDao implements IndexDao {
     }
 
     @Override
+    public void rebuild(final AttributeType attributeType) {
+        deleteIndexForMissingObjects(attributeType);
+
+        final List<Integer> objectIds = jdbcTemplate.queryForList("SELECT object_id FROM last WHERE sequence_id != 0", Integer.class);
+        rebuildForObjects(objectIds, attributeType, Phase.KEYS);
+        rebuildForObjects(objectIds, attributeType, Phase.OTHER);
+    }
+
+    @Override
     public void pause() {
         state.set(false);
     }
@@ -85,6 +95,29 @@ public class JdbcIndexDao implements IndexDao {
             state.waitUntil(true);
 
             rebuildIndexes(objectIdBatch, phase);
+
+            count += objectIdBatch.size();
+            if (count % LOG_EVERY == 0) {
+                LOGGER.info("Rebuilt {} indexes for {} objects in {}", phase, count, stopwatch);
+            }
+        }
+
+        if (count % LOG_EVERY != 0) {
+            LOGGER.info("Rebuilt {} indexes for {} objects in {}", phase, count, stopwatch);
+        }
+    }
+
+    private void rebuildForObjects(final List<Integer> objectIds, final AttributeType attributeType, final Phase phase) {
+        final List<List<Integer>> objectIdBatches = Lists.partition(objectIds, BATCH_SIZE);
+
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+        state.set(true);
+
+        int count = 0;
+        for (final List<Integer> objectIdBatch : objectIdBatches) {
+            state.waitUntil(true);
+
+            rebuildIndexes(objectIdBatch, attributeType, phase);
 
             count += objectIdBatch.size();
             if (count % LOG_EVERY == 0) {
@@ -132,6 +165,49 @@ public class JdbcIndexDao implements IndexDao {
                 final Set<AttributeType> updateAttributes = Phase.KEYS.equals(phase) ? keyAttributes : otherAttributes;
 
                 for (final AttributeType attributeType : updateAttributes) {
+                    updateAttributeIndex(rpslObject, attributeType);
+                }
+
+            } catch (EmptyResultDataAccessException e) {
+                LOGGER.debug("Missing: {}", objectId);
+            } catch (RuntimeException e) {
+                LOGGER.error("Rebuilding indexes: {}", objectId, e);
+            }
+        }
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED, propagation = Propagation.REQUIRES_NEW)
+    public void rebuildIndexes(final Iterable<Integer> objectIds, final AttributeType attributeType, final Phase phase) {
+        updateLockDao.setUpdateLock();
+
+        for (final Integer objectId : objectIds) {
+            try {
+                final Map<String, Object> map = jdbcTemplate.queryForMap(
+                        "SELECT object_id, object, pkey FROM last " +
+                        "WHERE object_id = ? " +
+                        "AND sequence_id != 0 ",
+                        objectId);
+                RpslObject rpslObject = RpslObject.parse(((Long)map.get("object_id")).intValue(), (byte[])map.get("object"));
+                final String pkey = (String)map.get("pkey");
+
+                if (!rpslObject.containsAttribute(attributeType)) {
+                    continue;
+                }
+
+                if (phase == Phase.KEYS) {
+                    rpslObject = sanitizeObject(rpslObject, pkey);
+                }
+
+                final ObjectTemplate objectTemplate = ObjectTemplate.getTemplate(rpslObject.getType());
+                final Set<AttributeType> keyAttributes = objectTemplate.getKeyAttributes();
+                final Set<AttributeType> otherAttributes = Sets.newHashSet();
+                otherAttributes.addAll(objectTemplate.getInverseLookupAttributes());
+                otherAttributes.addAll(objectTemplate.getLookupAttributes());
+                otherAttributes.removeAll(keyAttributes);
+
+                final Set<AttributeType> updateAttributes = Phase.KEYS.equals(phase) ? keyAttributes : otherAttributes;
+
+                if (updateAttributes.contains(attributeType)) {
                     updateAttributeIndex(rpslObject, attributeType);
                 }
 
