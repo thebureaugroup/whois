@@ -138,7 +138,7 @@ public class JdbcIndexDao implements IndexDao {
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED, propagation = Propagation.REQUIRES_NEW)
-    private void rebuildIndexes(final Iterable<Integer> objectIds, final Phase phase) {
+    public void rebuildIndexes(final Iterable<Integer> objectIds, final Phase phase) {
         updateLockDao.setUpdateLock();
 
         for (final Integer objectId : objectIds) {
@@ -273,7 +273,7 @@ public class JdbcIndexDao implements IndexDao {
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED, propagation = Propagation.REQUIRES_NEW)
-    private void deleteIndexForMissingObjects(final AttributeType attributeType) {
+    public void deleteIndexForMissingObjects(final AttributeType attributeType) {
         updateLockDao.setUpdateLock();
 
         try {
