@@ -78,24 +78,25 @@ public class DatabaseMaintenanceJmx extends JmxBase {
         });
     }
 
-    @ManagedOperation(description = "Rebuild indexes for specified attribute type based on objects in last")
+    @ManagedOperation(description = "Rebuild indexes for specified attribute type")
     @ManagedOperationParameters({
             @ManagedOperationParameter(name = "attributeType", description = "Attribute type"),
             @ManagedOperationParameter(name = "comment", description = "Optional comment for invoking the operation")
     })
     public void rebuildIndexesForAttributeType(final String attributeType, final String comment) {
-        backgroundOperation("Rebuild indexes for specified attribute type", comment, new Callable<String>() {
+        backgroundOperation("Rebuild indexes for specified attribute type", comment, new Callable<Void>() {
             @Override
-            public String call() {
+            public Void call() {
                 final AttributeType value;
                 try {
                     value = AttributeType.valueOf(attributeType);
                 } catch (IllegalArgumentException e) {
-                    return String.format("Invalid attribute type: %s", attributeType);
+                    LOGGER.error("Invalid attribute type: {}", attributeType);
+                    return null;
                 }
 
                 indexDao.rebuild(value);
-                return String.format("Rebuilt indexes for attribute type: %s", attributeType);
+                return null;
             }
         });
     }
