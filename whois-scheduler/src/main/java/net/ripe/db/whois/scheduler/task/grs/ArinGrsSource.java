@@ -31,6 +31,7 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,6 +40,8 @@ import java.util.zip.ZipFile;
 
 import static net.ripe.db.whois.common.domain.CIString.ciSet;
 import static net.ripe.db.whois.common.domain.CIString.ciString;
+import static net.ripe.db.whois.common.rpsl.AttributeType.PERSON;
+import static net.ripe.db.whois.common.rpsl.AttributeType.ROLE;
 
 @Component
 class ArinGrsSource extends GrsSource {
@@ -70,10 +73,8 @@ class ArinGrsSource extends GrsSource {
 
     @Override
     public void handleObjects(final File file, final ObjectHandler handler) throws IOException {
-        ZipFile zipFile = null;
 
-        try {
-            zipFile = new ZipFile(file, ZipFile.OPEN_READ);
+        try (ZipFile zipFile = new ZipFile(file, ZipFile.OPEN_READ)) {
             final ZipEntry zipEntry = zipFile.getEntry(zipEntryName);
             if (zipEntry == null) {
                 logger.error("Zipfile {} does not contain dump {}", file, zipEntryName);
@@ -89,7 +90,7 @@ class ArinGrsSource extends GrsSource {
                         return;
                     }
 
-                    final RpslObjectBuilder rpslObjectBuilder = new RpslObjectBuilder(Joiner.on("").join(lines));
+                    final RpslObjectBuilder rpslObjectBuilder = new RpslObjectBuilder(Joiner.on("").join(lines).replace("State/Prov", "StateProv"));
                     for (RpslObject next : expand(rpslObjectBuilder.getAttributes())) {
                         handler.handle(next);
                     }
@@ -114,6 +115,14 @@ class ArinGrsSource extends GrsSource {
                                 return objects;
                             }
                         }
+                    }
+
+                    if ("pochandle".equals(attributes.get(0).getKey())) {
+                        convertPocHandle(attributes);
+                    }
+
+                    if (attributes.get(0).getKey().equals("orgid")) {
+                        attributes.set(0, new RpslAttribute(AttributeType.ORGANISATION, attributes.get(0).getValue()));
                     }
 
                     return Lists.newArrayList(new RpslObject(transform(attributes)));
@@ -150,14 +159,43 @@ class ArinGrsSource extends GrsSource {
                     return null;
                 }
             });
-        } finally {
-            if (zipFile != null) {
-                zipFile.close();
-            }
         }
     }
 
-    private static final Set<CIString> IGNORED_OBJECTS = ciSet("OrgID", "POCHandle", "Updated");
+    private List<RpslAttribute> convertPocHandle(final List<RpslAttribute> attributes) {
+        findValue(attributes, "isrole").ifPresent(isrole -> {
+            attributes.remove(isrole);
+            Optional<RpslAttribute> firstname = findValue(attributes, "firstname");
+            Optional<RpslAttribute> lastname = findValue(attributes, "lastname");
+            if (ciString("Y").equals(isrole.getCleanValue())) {
+                lastname.ifPresent(attr -> {
+                    attributes.add(0, new RpslAttribute(ROLE, attr.getValue()));
+                    attributes.remove(attr);
+                });
+                firstname.ifPresent(attributes::remove);
+            } else {
+                attributes.add(
+                        0,
+                        new RpslAttribute(
+                                PERSON,
+                                firstname.map(RpslAttribute::getCleanValue).orElse(ciString("")) + " " + lastname.map(RpslAttribute::getCleanValue).orElse(ciString(""))
+                        )
+                );
+                firstname.ifPresent(attributes::remove);
+                lastname.ifPresent(attributes::remove);
+            }
+        });
+
+        return attributes;
+    }
+
+    private Optional<RpslAttribute> findValue(final List<RpslAttribute> attributes, String key) {
+        return attributes.stream()
+                .filter(attr -> attr.getKey().equals(key))
+                .findFirst();
+    }
+
+    private static final Set<CIString> IGNORED_OBJECTS = ciSet("Updated");
 
     private static final Map<CIString, Function<RpslAttribute, RpslAttribute>> TRANSFORM_FUNCTIONS = Maps.newHashMap();
 
@@ -173,11 +211,14 @@ class ArinGrsSource extends GrsSource {
 
                 {"AbuseHandle", AttributeType.TECH_C},
                 {"NOCHandle", AttributeType.TECH_C},
-                {"OrgAbuseHandle", AttributeType.TECH_C},
-                {"OrgAdminHandle", AttributeType.TECH_C},
+                {"POCHandle", AttributeType.NIC_HDL},
+                {"OrgAbuseHandle", AttributeType.ABUSE_C},
+                {"OrgAdminHandle", AttributeType.ADMIN_C},
                 {"OrgNOCHandle", AttributeType.TECH_C},
                 {"OrgTechHandle", AttributeType.TECH_C},
                 {"TechHandle", AttributeType.TECH_C},
+                {"Mailbox", AttributeType.E_MAIL},
+                {"OfficePhone", AttributeType.PHONE},
 
                 {"ASName", AttributeType.AS_NAME},
                 {"OrgID", AttributeType.ORG},
@@ -187,46 +228,33 @@ class ArinGrsSource extends GrsSource {
                 {"NetType", AttributeType.STATUS},
                 {"Source", AttributeType.SOURCE},
         }) {
-            addTransformFunction(new Function<RpslAttribute, RpslAttribute>() {
-                @Override
-                public RpslAttribute apply(final RpslAttribute input) {
-                    return new RpslAttribute((AttributeType) mapped[1], input.getValue());
-                }
-            }, (String) mapped[0]);
+            addTransformFunction(input -> new RpslAttribute((AttributeType) mapped[1], input.getValue()), (String) mapped[0]);
         }
 
-        addTransformFunction(new Function<RpslAttribute, RpslAttribute>() {
-            @Override
-            public RpslAttribute apply(final RpslAttribute input) {
-                return new RpslAttribute(AttributeType.ADDRESS, String.format("%s # %s", input.getValue(), input.getKey()));
+        addTransformFunction(input -> new RpslAttribute(AttributeType.ADDRESS, String.format("%s # %s", input.getValue(), input.getKey())), "City", "Country", "PostalCode", "Street", "StateProv");
+
+        addTransformFunction(input -> {
+            final String value = input.getCleanValue().toString();
+
+            // Fix IPv6 syntax
+            if (value.contains(":")) {
+                final Matcher matcher = IPV6_SPLIT_PATTERN.matcher(value);
+                if (matcher.find()) {
+                    final Ipv6Resource beginResource = Ipv6Resource.parse(matcher.group(1));
+                    final Ipv6Resource endResource = Ipv6Resource.parse(matcher.group(2));
+                    final Ipv6Resource ipv6Resource = new Ipv6Resource(beginResource.begin(), endResource.end());
+
+                    return new RpslAttribute(AttributeType.INET6NUM, ipv6Resource.toString());
+                }
             }
-        }, "City", "Country", "PostalCode", "Street", "State/Prov");
 
-        addTransformFunction(new Function<RpslAttribute, RpslAttribute>() {
-            @Override
-            public RpslAttribute apply(final RpslAttribute input) {
-                final String value = input.getCleanValue().toString();
-
-                // Fix IPv6 syntax
-                if (value.contains(":")) {
-                    final Matcher matcher = IPV6_SPLIT_PATTERN.matcher(value);
-                    if (matcher.find()) {
-                        final Ipv6Resource beginResource = Ipv6Resource.parse(matcher.group(1));
-                        final Ipv6Resource endResource = Ipv6Resource.parse(matcher.group(2));
-                        final Ipv6Resource ipv6Resource = new Ipv6Resource(beginResource.begin(), endResource.end());
-
-                        return new RpslAttribute(AttributeType.INET6NUM, ipv6Resource.toString());
-                    }
-                }
-
-                final IpInterval<?> ipInterval = IpInterval.parse(value);
-                if (ipInterval instanceof Ipv4Resource) {
-                    return new RpslAttribute(AttributeType.INETNUM, input.getValue());
-                } else if (ipInterval instanceof Ipv6Resource) {
-                    return new RpslAttribute(AttributeType.INET6NUM, input.getValue());
-                } else {
-                    throw new IllegalArgumentException(String.format("Unexpected input: %s", input.getCleanValue()));
-                }
+            final IpInterval<?> ipInterval = IpInterval.parse(value);
+            if (ipInterval instanceof Ipv4Resource) {
+                return new RpslAttribute(AttributeType.INETNUM, input.getValue());
+            } else if (ipInterval instanceof Ipv6Resource) {
+                return new RpslAttribute(AttributeType.INET6NUM, input.getValue());
+            } else {
+                throw new IllegalArgumentException(String.format("Unexpected input: %s", input.getCleanValue()));
             }
         }, "NetRange");
     }

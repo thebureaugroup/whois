@@ -150,12 +150,11 @@ class GrsSourceImporter {
                             final RpslObject filteredObject = filterObject(rpslObject);
                             final RpslObject cleanObject = sanitizer.sanitize(filteredObject, messages);
                             final RpslAttribute typeAttribute = cleanObject.getTypeAttribute();
-                            typeAttribute.validateSyntax(cleanObject.getType(), messages);
                             if (messages.hasErrors()) {
                                 logger.debug("Errors for object with key {}: {}", typeAttribute, messages);
                                 nrIgnored++;
                             } else if (authoritativeData.isMaintainedInRirSpace(cleanObject)) {
-                                createOrUpdate(cleanObject);
+                                    createOrUpdate(cleanObject);
                             }
                         }
                     }
