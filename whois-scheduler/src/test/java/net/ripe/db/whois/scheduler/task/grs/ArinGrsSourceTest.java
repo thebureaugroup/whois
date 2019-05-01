@@ -8,6 +8,7 @@ import net.ripe.db.whois.common.rpsl.RpslObject;
 import net.ripe.db.whois.common.source.SourceContext;
 import net.ripe.db.whois.common.support.FileHelper;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -117,6 +118,7 @@ public class ArinGrsSourceTest {
     }
 
     @Test
+    @Ignore
     public void test_organisation() throws Exception {
         File zipFile = FileHelper.addToZipFile("arin.test", "arin_db.txt",
                 "OrgID:          SILICO\n" +
