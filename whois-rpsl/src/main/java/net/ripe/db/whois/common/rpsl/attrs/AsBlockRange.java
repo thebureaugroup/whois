@@ -1,11 +1,13 @@
 package net.ripe.db.whois.common.rpsl.attrs;
 
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class AsBlockRange {
 
     private static final Pattern AS_BLOCK_PATTERN = Pattern.compile("^[Aa][Ss](\\d+)\\s*-\\s*[Aa][Ss](\\d+)$");
+    private static final String AS_PREFIX_FORMAT = "AS%s";
 
     private final long begin;
 
@@ -34,21 +36,18 @@ public final class AsBlockRange {
 
     @Override
     public boolean equals(final Object o) {
-        if (this == o){
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()){
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
         final AsBlockRange that = (AsBlockRange) o;
-        return begin == that.begin && end == that.end;
+
+        return Objects.equals(begin, that.begin) &&
+                Objects.equals(end, that.end);
     }
 
     @Override
     public int hashCode() {
-        int result = (int) (begin ^ (begin >>> 32));
-        result = 31 * result + (int) (end ^ (end >>> 32));
-        return result;
+        return Objects.hash(begin, end);
     }
 
     public boolean contains(final AsBlockRange asBlockRange) {
@@ -61,5 +60,18 @@ public final class AsBlockRange {
 
     public long getEnd() {
         return end;
+    }
+
+    public String getEndWithPrefix() {
+        return String.format(AS_PREFIX_FORMAT, end);
+    }
+
+    public String getBeginWithPrefix() {
+        return String.format(AS_PREFIX_FORMAT, begin);
+    }
+
+    @Override
+    public String toString() {
+        return String.join("-", getBeginWithPrefix(), getEndWithPrefix());
     }
 }

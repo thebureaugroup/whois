@@ -2,8 +2,8 @@ package net.ripe.db.whois.api.autocomplete;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import net.ripe.db.whois.api.freetext.FreeTextAnalyzer;
-import net.ripe.db.whois.api.freetext.FreeTextIndex;
+import net.ripe.db.whois.api.fulltextsearch.FullTextAnalyzer;
+import net.ripe.db.whois.api.fulltextsearch.FullTextIndex;
 import net.ripe.db.whois.common.rpsl.AttributeType;
 import net.ripe.db.whois.common.rpsl.ObjectTemplate;
 import net.ripe.db.whois.common.rpsl.ObjectType;
@@ -28,11 +28,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Component
@@ -41,15 +43,17 @@ public class AutocompleteSearch {
     private static final Logger LOGGER = LoggerFactory.getLogger(AutocompleteSearch.class);
 
     // results will always be sorted by lookup key (which is case sensitive, and by string value)
-    private static final Sort SORT_BY_LOOKUP_KEY = new Sort(new SortField(FreeTextIndex.LOOKUP_KEY_FIELD_NAME, SortField.Type.STRING));
+    private static final Sort SORT_BY_LOOKUP_KEY = new Sort(new SortField(FullTextIndex.LOOKUP_KEY_FIELD_NAME, SortField.Type.STRING));
+
+    private static final Pattern COMMENT_PATTERN = Pattern.compile("#.*");
 
     private static final int MAX_SEARCH_RESULTS = 10;
 
-    private final FreeTextIndex freeTextIndex;
+    private final FullTextIndex fullTextIndex;
 
     @Autowired
-    public AutocompleteSearch(final FreeTextIndex freeTextIndex) {
-        this.freeTextIndex = freeTextIndex;
+    public AutocompleteSearch(final FullTextIndex fullTextIndex) {
+        this.fullTextIndex = fullTextIndex;
     }
 
     public List<Map<String, Object>> search(
@@ -58,7 +62,7 @@ public class AutocompleteSearch {
         final Set<AttributeType> responseAttributes,    // attribute(s) to return
         final Set<ObjectType> objectTypes)              // filter by object type(s)
             throws IOException {                        // TODO: wrap IOException, return something sensible
-        return freeTextIndex.search(
+        return fullTextIndex.search(
             (final IndexReader indexReader, final TaxonomyReader taxonomyReader, final IndexSearcher indexSearcher) -> {
                 final List<Map<String, Object>> results = Lists.newArrayList();
 
@@ -80,17 +84,17 @@ public class AutocompleteSearch {
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     final Document doc = indexSearcher.doc(scoreDoc.doc);
                     final Map<String, Object> result = Maps.newLinkedHashMap();
-                    result.put("key", doc.get(FreeTextIndex.LOOKUP_KEY_FIELD_NAME));
-                    result.put("type", doc.get(FreeTextIndex.OBJECT_TYPE_FIELD_NAME));
+                    result.put("key", doc.get(FullTextIndex.LOOKUP_KEY_FIELD_NAME));
+                    result.put("type", doc.get(FullTextIndex.OBJECT_TYPE_FIELD_NAME));
 
                     for (final AttributeType attribute : responseAttributes) {
                         final ObjectTemplate template = ObjectTemplate.getTemplate(
-                                ObjectType.getByName(doc.get(FreeTextIndex.OBJECT_TYPE_FIELD_NAME)));
+                                ObjectType.getByName(doc.get(FullTextIndex.OBJECT_TYPE_FIELD_NAME)));
 
                         if (template.getMultipleAttributes().contains(attribute)) {
-                            result.put(attribute.getName(), Lists.newArrayList(doc.getValues(attribute.getName())));
+                            result.put(attribute.getName(), filterComments(doc.getValues(attribute.getName())));
                         } else {
-                            result.put(attribute.getName(), doc.get(attribute.getName()));
+                            result.put(attribute.getName(), filterComment(doc.get(attribute.getName())));
                         }
                     }
 
@@ -101,14 +105,27 @@ public class AutocompleteSearch {
         });
     }
 
+    @Nullable
+    private String filterComment(final String attributeValue) {
+        return (attributeValue == null) ? null : COMMENT_PATTERN.matcher(attributeValue).replaceFirst("").trim();
+    }
+
+    private List<String> filterComments(final String[] attributeValues) {
+        final List<String> response = Lists.newArrayListWithCapacity(attributeValues.length);
+        for (String attributeValue : attributeValues) {
+            response.add(filterComment(attributeValue));
+        }
+        return response;
+    }
+
     // query by attribute(s)
     private Query constructQuery(final Set<AttributeType> queryAttributes, final String queryString) throws ParseException {
         final Set<String> queryAttributeNames = queryAttributes.stream().map(attributeType -> attributeType.getName()).collect(Collectors.toSet());
 
         final MultiFieldQueryParser parser = new MultiFieldQueryParser(
                                                         queryAttributeNames.toArray(new String[queryAttributeNames.size()]),
-                                                        new FreeTextAnalyzer(FreeTextAnalyzer.Operation.QUERY));
-        parser.setAnalyzer(FreeTextIndex.QUERY_ANALYZER);
+                                                        new FullTextAnalyzer(FullTextAnalyzer.Operation.QUERY));
+        parser.setAnalyzer(FullTextIndex.QUERY_ANALYZER);
         parser.setDefaultOperator(QueryParser.Operator.AND);
         return parser.parse(String.format("%s*", normalise(queryString)));
     }
@@ -124,7 +141,7 @@ public class AutocompleteSearch {
         for (ObjectType objectType : objectTypes) {
             result.add(
                 new TermQuery(
-                    new Term(FreeTextIndex.OBJECT_TYPE_FIELD_NAME, objectType.getName())),
+                    new Term(FullTextIndex.OBJECT_TYPE_FIELD_NAME, objectType.getName())),
                     BooleanClause.Occur.SHOULD);
         }
 

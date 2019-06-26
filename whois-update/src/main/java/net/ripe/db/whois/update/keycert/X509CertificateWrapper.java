@@ -16,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.Objects;
 
 public final class X509CertificateWrapper implements KeyWrapper {
     private static final String X509_HEADER = "-----BEGIN CERTIFICATE-----";
@@ -36,20 +37,24 @@ public final class X509CertificateWrapper implements KeyWrapper {
 
         try {
             final byte[] bytes = RpslObjectFilter.getCertificateFromKeyCert(rpslObject).getBytes(Charsets.ISO_8859_1);
-
-            X509CertParser parser = new X509CertParser();
-            parser.engineInit(new ByteArrayInputStream(bytes));
-            X509Certificate result = (X509Certificate) parser.engineRead();
-
-            if (result == null) {
-                throw new IllegalArgumentException("Invalid X509 Certificate");
-            }
-
-            return new X509CertificateWrapper(result);
-
+            return parse(bytes);
         } catch (StreamParsingException e) {
             throw new IllegalArgumentException("Error parsing X509 certificate from key-cert object", e);
         }
+    }
+
+    static X509CertificateWrapper parse(final String certificate) throws StreamParsingException {
+        return parse(certificate.getBytes());
+    }
+
+    static X509CertificateWrapper parse(final byte[] certificate) throws StreamParsingException {
+        final X509CertParser parser = new X509CertParser();
+        parser.engineInit(new ByteArrayInputStream(certificate));
+        final X509Certificate result = (X509Certificate) parser.engineRead();
+        if (result == null) {
+            throw new IllegalArgumentException("Invalid X509 Certificate");
+        }
+        return new X509CertificateWrapper(result);
     }
 
     static boolean looksLikeX509Key(final RpslObject rpslObject) {
@@ -75,21 +80,17 @@ public final class X509CertificateWrapper implements KeyWrapper {
 
     @Override
     public boolean equals(final Object o) {
-        if (this == o) {
-            return true;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        final X509CertificateWrapper that = (X509CertificateWrapper) o;
 
-        return ((X509CertificateWrapper) o).getCertificate().equals(
-                this.getCertificate());
+        return Objects.equals(certificate, that.certificate);
     }
 
     @Override
     public int hashCode() {
-        return certificate != null ? certificate.hashCode() : 0;
+        return Objects.hash(certificate);
     }
 
     public X509Certificate getCertificate() {

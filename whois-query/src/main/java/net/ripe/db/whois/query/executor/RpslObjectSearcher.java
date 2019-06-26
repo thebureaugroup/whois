@@ -23,11 +23,15 @@ import net.ripe.db.whois.common.rpsl.ObjectTemplate;
 import net.ripe.db.whois.common.rpsl.ObjectType;
 import net.ripe.db.whois.common.rpsl.RpslObject;
 import net.ripe.db.whois.common.rpsl.attrs.AsBlockRange;
+import net.ripe.db.whois.common.source.SourceContext;
 import net.ripe.db.whois.query.QueryMessages;
 import net.ripe.db.whois.query.dao.Inet6numDao;
 import net.ripe.db.whois.query.dao.InetnumDao;
 import net.ripe.db.whois.query.domain.MessageObject;
+import net.ripe.db.whois.query.filter.AttributeFilter;
 import net.ripe.db.whois.query.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Component;
@@ -42,6 +46,7 @@ import java.util.Set;
 
 @Component
 class RpslObjectSearcher {
+    private static final Logger LOGGER = LoggerFactory.getLogger(RpslObjectSearcher.class);
     private static final Set<AttributeType> INVERSE_ATTRIBUTE_TYPES = EnumSet.noneOf(AttributeType.class);
     private static final Set<AttributeType> INVERSE_ATTRIBUTE_TYPES_OVERRIDE = EnumSet.of(AttributeType.SPONSORING_ORG);
 
@@ -60,6 +65,7 @@ class RpslObjectSearcher {
     private final Ipv6RouteTree route6Tree;
     private final Ipv4DomainTree ipv4DomainTree;
     private final Ipv6DomainTree ipv6DomainTree;
+    private final Set<AttributeFilter> attributeFilters;
 
     @Autowired
     public RpslObjectSearcher(
@@ -71,7 +77,8 @@ class RpslObjectSearcher {
             final Ipv4RouteTree route4Tree,
             final Ipv6RouteTree route6Tree,
             final Ipv4DomainTree ipv4DomainTree,
-            final Ipv6DomainTree ipv6DomainTree) {
+            final Ipv6DomainTree ipv6DomainTree,
+            final Set<AttributeFilter> attributeFilters) {
         this.rpslObjectDao = rpslObjectDao;
         this.inetnumDao = inetnumDao;
         this.inet6numDao = inet6numDao;
@@ -81,21 +88,24 @@ class RpslObjectSearcher {
         this.route6Tree = route6Tree;
         this.ipv4DomainTree = ipv4DomainTree;
         this.ipv6DomainTree = ipv6DomainTree;
+        this.attributeFilters = attributeFilters;
     }
 
-    public Iterable<? extends ResponseObject> search(final Query query) {
-        Iterable<ResponseObject> result = Collections.emptyList();
+    public Iterable<? extends ResponseObject> search(final Query query, final SourceContext sourceContext) {
+        Iterable<? extends ResponseObject> result = Collections.emptyList();
 
         if (query.isInverse()) {
-            return indexLookupReverse(query);
+            result = indexLookupReverse(query);
+        } else if (query.isMatchPrimaryKeyOnly()) {
+            result = indexLookupDirect(query);
+        } else {
+            for (final ObjectType objectType : query.getObjectTypes()) {
+                result = Iterables.concat(result, executeForObjectType(query, objectType));
+            }
         }
 
-        if (query.isMatchPrimaryKeyOnly()) {
-            return indexLookupDirect(query);
-        }
-
-        for (final ObjectType objectType : query.getObjectTypes()) {
-            result = Iterables.concat(result, executeForObjectType(query, objectType));
+        for (AttributeFilter attributeFilter : attributeFilters) {
+            result = attributeFilter.filter(result, query.getSources(), sourceContext);
         }
 
         return result;
@@ -238,6 +248,7 @@ class RpslObjectSearcher {
                 try {
                     result.add(rpslObjectDao.findByKey(type, searchValue));
                 } catch (EmptyResultDataAccessException ignored) {
+                    LOGGER.debug("{}: {}", ignored.getClass().getName(), ignored.getMessage());
                 }
             } else {
                 result.addAll(filterByType(type, rpslObjectDao.findByAttribute(lookupAttribute, searchValue)));

@@ -29,18 +29,13 @@
         <property name="maxIdleTime" value="7200"/>
         <property name="preferredTestQuery" value="SELECT 1"/>
         <property name="idleConnectionTestPeriod" value="15"/>
+    	<property name="connectionCustomizerClassName" value="net.ripe.db.whois.common.jdbc.WhoisConnectorCustomizer"/>
     </bean>
 
     <bean id="aclDataSource" parent="abstractDataSource">
         <property name="jdbcUrl" value="${acl.database.url}"/>
         <property name="user" value="${acl.database.username}"/>
         <property name="password" value="${acl.database.password}"/>
-    </bean>
-
-    <bean id="dnscheckDataSource" parent="abstractDataSource">
-        <property name="jdbcUrl" value="${dnscheck.database.url}"/>
-        <property name="user" value="${dnscheck.database.username}"/>
-        <property name="password" value="${dnscheck.database.password}"/>
     </bean>
 
     <bean id="mailupdatesDataSource" parent="abstractDataSource">

@@ -3,10 +3,9 @@ package net.ripe.db.whois.api.rest;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
 import net.ripe.db.whois.api.autocomplete.AutocompleteService;
+import net.ripe.db.whois.api.fulltextsearch.FullTextSearch;
 import net.ripe.db.whois.api.httpserver.DefaultExceptionMapper;
 import net.ripe.db.whois.api.httpserver.ServletDeployer;
-import net.ripe.db.whois.api.transfer.AsnTransfersRestService;
-import net.ripe.db.whois.api.transfer.InetnumTransfersRestService;
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.webapp.WebAppContext;
@@ -26,9 +25,9 @@ import java.util.EnumSet;
 public class WhoisServletDeployer implements ServletDeployer {
 
     private final WhoisRestService whoisRestService;
+    private final WhoisSearchService whoisSearchService;
+    private final WhoisVersionService whoisVersionService;
     private final SyncUpdatesService syncUpdatesService;
-    private final AsnTransfersRestService asnTransfersRestService;
-    private final InetnumTransfersRestService inetnumTransfersRestService;
     private final WhoisMetadata whoisMetadata;
     private final GeolocationService geolocationService;
     private final AbuseContactService abuseContactService;
@@ -37,12 +36,14 @@ public class WhoisServletDeployer implements ServletDeployer {
     private final DefaultExceptionMapper defaultExceptionMapper;
     private final MaintenanceModeFilter maintenanceModeFilter;
     private final DomainObjectService domainObjectService;
+    private final FullTextSearch fullTextSearch;
+    private final BatchUpdatesService batchUpdatesService;
 
     @Autowired
     public WhoisServletDeployer(final WhoisRestService whoisRestService,
+                                final WhoisSearchService whoisSearchService,
+                                final WhoisVersionService whoisVersionService,
                                 final SyncUpdatesService syncUpdatesService,
-                                final AsnTransfersRestService asnTransfersRestService,
-                                final InetnumTransfersRestService inetnumTransfersRestService,
                                 final WhoisMetadata whoisMetadata,
                                 final GeolocationService geolocationService,
                                 final AbuseContactService abuseContactService,
@@ -50,11 +51,13 @@ public class WhoisServletDeployer implements ServletDeployer {
                                 final ReferencesService referencesService,
                                 final DefaultExceptionMapper defaultExceptionMapper,
                                 final MaintenanceModeFilter maintenanceModeFilter,
-                                final DomainObjectService domainObjectService) {
+                                final DomainObjectService domainObjectService,
+                                final FullTextSearch fullTextSearch,
+                                final BatchUpdatesService batchUpdatesService) {
         this.whoisRestService = whoisRestService;
+        this.whoisSearchService = whoisSearchService;
+        this.whoisVersionService = whoisVersionService;
         this.syncUpdatesService = syncUpdatesService;
-        this.asnTransfersRestService = asnTransfersRestService;
-        this.inetnumTransfersRestService = inetnumTransfersRestService;
         this.whoisMetadata = whoisMetadata;
         this.geolocationService = geolocationService;
         this.abuseContactService = abuseContactService;
@@ -63,6 +66,8 @@ public class WhoisServletDeployer implements ServletDeployer {
         this.defaultExceptionMapper = defaultExceptionMapper;
         this.maintenanceModeFilter = maintenanceModeFilter;
         this.domainObjectService = domainObjectService;
+        this.fullTextSearch = fullTextSearch;
+        this.batchUpdatesService = batchUpdatesService;
     }
 
     @Override
@@ -74,9 +79,9 @@ public class WhoisServletDeployer implements ServletDeployer {
         EncodingFilter.enableFor(resourceConfig, DeflateEncoder.class);
         resourceConfig.register(MultiPartFeature.class);
         resourceConfig.register(whoisRestService);
+        resourceConfig.register(whoisSearchService);
+        resourceConfig.register(whoisVersionService);
         resourceConfig.register(syncUpdatesService);
-        resourceConfig.register(asnTransfersRestService);
-        resourceConfig.register(inetnumTransfersRestService);
         resourceConfig.register(whoisMetadata);
         resourceConfig.register(geolocationService);
         resourceConfig.register(abuseContactService);
@@ -84,13 +89,18 @@ public class WhoisServletDeployer implements ServletDeployer {
         resourceConfig.register(referencesService);
         resourceConfig.register(defaultExceptionMapper);
         resourceConfig.register(domainObjectService);
+        resourceConfig.register(fullTextSearch);
+        resourceConfig.register(batchUpdatesService);
         resourceConfig.register(new CacheControlFilter());
-        resourceConfig.register(new CrossOriginFilter());
 
         final JacksonJaxbJsonProvider jaxbJsonProvider = new JacksonJaxbJsonProvider();
         jaxbJsonProvider.configure(SerializationFeature.INDENT_OUTPUT, true);
         jaxbJsonProvider.configure(SerializationFeature.WRAP_ROOT_VALUE, false);
         resourceConfig.register(jaxbJsonProvider);
+
+        // only allow cross-origin requests from ripe.net
+        final FilterHolder crossOriginFilterHolder = context.addFilter(org.eclipse.jetty.servlets.CrossOriginFilter.class, "/whois/*", EnumSet.allOf(DispatcherType.class));
+        crossOriginFilterHolder.setInitParameter(org.eclipse.jetty.servlets.CrossOriginFilter.ALLOWED_ORIGINS_PARAM, "https?://*.ripe.net");
 
         context.addServlet(new ServletHolder("Whois REST API", new ServletContainer(resourceConfig)), "/whois/*");
     }

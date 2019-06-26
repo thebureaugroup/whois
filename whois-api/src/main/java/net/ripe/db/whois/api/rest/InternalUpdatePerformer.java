@@ -2,6 +2,7 @@ package net.ripe.db.whois.api.rest;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import net.ripe.db.whois.api.UpdateCreator;
 import net.ripe.db.whois.api.rest.domain.ErrorMessage;
 import net.ripe.db.whois.api.rest.domain.Link;
 import net.ripe.db.whois.api.rest.domain.WhoisObject;
@@ -30,7 +31,6 @@ import net.ripe.db.whois.update.domain.Update;
 import net.ripe.db.whois.update.domain.UpdateContext;
 import net.ripe.db.whois.update.domain.UpdateMessages;
 import net.ripe.db.whois.update.domain.UpdateRequest;
-import net.ripe.db.whois.update.domain.UpdateResponse;
 import net.ripe.db.whois.update.domain.UpdateStatus;
 import net.ripe.db.whois.update.handler.UpdateRequestHandler;
 import net.ripe.db.whois.update.log.LogCallback;
@@ -50,8 +50,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static net.ripe.db.whois.api.rest.RestServiceHelper.isQueryParamSet;
 
 @Component
 public class InternalUpdatePerformer {
@@ -100,19 +98,29 @@ public class InternalUpdatePerformer {
     }
 
     public Response createResponse(final UpdateContext updateContext, final WhoisResources whoisResources, final Update update, final HttpServletRequest request) {
-        final UpdateStatus status = updateContext.getStatus(update);
-
         final Response.ResponseBuilder responseBuilder;
-        if (status == UpdateStatus.SUCCESS) {
-            responseBuilder = Response.status(Response.Status.OK);
-        } else if (status == UpdateStatus.FAILED_AUTHENTICATION) {
-            responseBuilder = Response.status(Response.Status.UNAUTHORIZED);
-        } else if (status == UpdateStatus.EXCEPTION) {
-            responseBuilder = Response.status(Response.Status.INTERNAL_SERVER_ERROR);
-        } else if (updateContext.getMessages(update).contains(UpdateMessages.newKeywordAndObjectExists())) {
-            responseBuilder = Response.status(Response.Status.CONFLICT);
-        } else {
-            responseBuilder = Response.status(Response.Status.BAD_REQUEST);
+        switch (updateContext.getStatus(update)) {
+            case SUCCESS:
+                responseBuilder = Response.status(Response.Status.OK);
+                break;
+            case FAILED_AUTHENTICATION:
+                responseBuilder = Response.status(Response.Status.UNAUTHORIZED);
+                    break;
+            case EXCEPTION:
+                responseBuilder = Response.status(Response.Status.INTERNAL_SERVER_ERROR);
+                break;
+            case FAILED:
+            default: {
+                if (updateContext.getMessages(update).contains(UpdateMessages.newKeywordAndObjectExists())) {
+                    responseBuilder = Response.status(Response.Status.CONFLICT);
+                } else {
+                    if (updateContext.getMessages(update).contains(UpdateMessages.unexpectedError())) {
+                        responseBuilder = Response.status(Response.Status.INTERNAL_SERVER_ERROR);
+                    } else {
+                        responseBuilder = Response.status(Response.Status.BAD_REQUEST);
+                    }
+                }
+            }
         }
 
         return responseBuilder.entity(new StreamingResponse(request, whoisResources)).build();
@@ -171,11 +179,13 @@ public class InternalUpdatePerformer {
     }
 
     public Update createUpdate(final UpdateContext updateContext, final RpslObject rpslObject, final List<String> passwords, final String deleteReason, final String override) {
-        return new Update(
+        return UpdateCreator.createUpdate(
                 createParagraph(updateContext, rpslObject, passwords, override),
                 deleteReason != null ? Operation.DELETE : Operation.UNSPECIFIED,
                 deleteReason != null ? Lists.newArrayList(deleteReason) : null,
-                rpslObject);
+                rpslObject.toString(),
+                updateContext
+        );
     }
 
     private static Paragraph createParagraph(final UpdateContext updateContext, final RpslObject rpslObject, final List<String> passwords, final String override) {

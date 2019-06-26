@@ -18,11 +18,13 @@ import org.joda.time.LocalDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.cert.X509Certificate;
 import java.util.Iterator;
+import java.util.Objects;
 
 public class X509SignedMessage {
 
@@ -95,18 +97,18 @@ public class X509SignedMessage {
         return builder.toString();
     }
 
+    // The signing time must be within an hour of the current time.
     public boolean verifySigningTime(final DateTimeProvider dateTimeProvider) {
         final LocalDateTime signingTime = getSigningTime();
-        if (signingTime != null) {
-            final LocalDateTime oneWeekAgo = dateTimeProvider.getCurrentDateTime().minusDays(7);
-            if (signingTime.isBefore(oneWeekAgo)) {
-                return false;
-            }
+        if (signingTime == null) {
+            return true;
         }
 
-        return true;
+        final LocalDateTime currentTime = dateTimeProvider.getCurrentDateTime();
+        return (signingTime.isAfter(currentTime.minusHours(1)) && signingTime.isBefore(currentTime.plusHours(1)));
     }
 
+    @Nullable
     private LocalDateTime getSigningTime() {
         try {
             CMSProcessable cmsProcessable = new CMSProcessableByteArray(signedData.getBytes());
@@ -125,6 +127,7 @@ public class X509SignedMessage {
         return null;
     }
 
+    @Nullable
     private LocalDateTime getSigningTime(final SignerInformation signerInformation) {
         final AttributeTable signedAttributes = signerInformation.getSignedAttributes();
         if (signedAttributes != null) {
@@ -141,20 +144,16 @@ public class X509SignedMessage {
 
     @Override
     public boolean equals(final Object o) {
-        if (this == o) {
-            return true;
-        }
-
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
         final X509SignedMessage that = (X509SignedMessage) o;
-        return signature.equals(that.signature);
+
+        return Objects.equals(signature, that.signature);
     }
 
     @Override
     public int hashCode() {
-        return signature.hashCode();
+        return Objects.hash(signature);
     }
 }

@@ -3,13 +3,21 @@ package net.ripe.db.whois.api.rest;
 import com.google.common.collect.Lists;
 import com.google.common.net.InetAddresses;
 import net.ripe.db.whois.api.QueryBuilder;
+import net.ripe.db.whois.api.rest.domain.AbuseContact;
+import net.ripe.db.whois.api.rest.domain.AbusePKey;
 import net.ripe.db.whois.api.rest.domain.AbuseResources;
+import net.ripe.db.whois.api.rest.domain.Link;
+import net.ripe.db.whois.api.rest.domain.Parameters;
+import net.ripe.db.whois.api.rest.domain.WhoisResources;
 import net.ripe.db.whois.api.rest.mapper.AbuseContactMapper;
 import net.ripe.db.whois.common.domain.ResponseObject;
+import net.ripe.db.whois.common.rpsl.AttributeSyntax;
+import net.ripe.db.whois.common.rpsl.ObjectType;
+import net.ripe.db.whois.common.rpsl.RpslObject;
 import net.ripe.db.whois.query.QueryFlag;
 import net.ripe.db.whois.query.acl.AccessControlListManager;
 import net.ripe.db.whois.query.handler.QueryHandler;
-import net.ripe.db.whois.query.planner.RpslAttributes;
+import net.ripe.db.whois.query.planner.AbuseCFinder;
 import net.ripe.db.whois.query.query.Query;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -24,10 +32,8 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.util.List;
-
+import java.util.Optional;
 
 @Component
 @Path("/abuse-contact")
@@ -35,11 +41,13 @@ public class AbuseContactService {
 
     private final QueryHandler queryHandler;
     private final AccessControlListManager accessControlListManager;
+    private final AbuseCFinder abuseCFinder;
 
     @Autowired
-    public AbuseContactService(final QueryHandler queryHandler, final AccessControlListManager accessControlListManager) {
+    public AbuseContactService(final QueryHandler queryHandler, final AccessControlListManager accessControlListManager, final AbuseCFinder abuseCFinder) {
         this.queryHandler = queryHandler;
         this.accessControlListManager = accessControlListManager;
+        this.abuseCFinder = abuseCFinder;
     }
 
     //TODO [TP]: in case abuse contact is empty we should return 404 instead of 200 + empty string!
@@ -50,8 +58,10 @@ public class AbuseContactService {
             @Context final HttpServletRequest request,
             @PathParam("key") final String key) {
 
-        QueryBuilder queryBuilder = new QueryBuilder()
-                .addFlag(QueryFlag.ABUSE_CONTACT);
+        final QueryBuilder queryBuilder = new QueryBuilder()
+                .addFlag(QueryFlag.NO_GROUPING)
+                .addFlag(QueryFlag.NO_REFERENCED)
+                .addCommaList(QueryFlag.SELECT_TYPES, getObjectType(key).getName());
 
         final Query query = Query.parse(queryBuilder.build(key), Query.Origin.REST, isTrusted(request));
 
@@ -62,9 +72,20 @@ public class AbuseContactService {
 
             @Override
             public void handle(final ResponseObject responseObject) {
-                if (responseObject instanceof RpslAttributes) {
-                    final RpslAttributes responseAttributes = (RpslAttributes)responseObject;
-                    abuseResources.add(AbuseContactMapper.mapAbuseContact(key, responseAttributes.getAttributes()));
+                if (responseObject instanceof RpslObject) {
+                    final RpslObject rpslObject = (RpslObject)responseObject;
+
+                    final Optional<net.ripe.db.whois.query.planner.AbuseContact> optionalAbuseContact = abuseCFinder.getAbuseContact(rpslObject);
+
+                    abuseResources.add(
+                        new AbuseResources(
+                            "abuse-contact",
+                            Link.create(String.format("http://rest.db.ripe.net/abuse-contact/%s", key)),
+                            new Parameters.Builder().primaryKey(new AbusePKey(rpslObject.getKey().toString())).build(),
+                            optionalAbuseContact
+                                    .map(abuseContact -> new AbuseContact(abuseContact.getNicHandle(), abuseContact.getAbuseMailbox(), abuseContact.isSuspect(), abuseContact.getOrgId()))
+                                    .orElseGet(() -> new AbuseContact("", "", false, "")),
+                            Link.create(WhoisResources.TERMS_AND_CONDITIONS)));
                 }
             }
         });
@@ -84,15 +105,30 @@ public class AbuseContactService {
                     .build());
         }
 
-        return Response.ok(new StreamingOutput() {
-            @Override
-            public void write(OutputStream output) throws IOException, WebApplicationException {
-                StreamingHelper.getStreamingMarshal(request, output).singleton(result);
-            }
-        }).build();
+        return Response.ok((StreamingOutput) output -> StreamingHelper.getStreamingMarshal(request, output).singleton(result)).build();
     }
 
     private boolean isTrusted(final HttpServletRequest request) {
         return accessControlListManager.isTrusted(InetAddresses.forString(request.getRemoteAddr()));
+    }
+
+    private ObjectType getObjectType(final String key) {
+        if (AttributeSyntax.AS_NUMBER_SYNTAX.matches(ObjectType.AUT_NUM, key)) {
+            return ObjectType.AUT_NUM;
+        }
+        else {
+            if (AttributeSyntax.IPV4_SYNTAX.matches(ObjectType.INETNUM, key)) {
+                return ObjectType.INETNUM;
+            }
+            else {
+                if (AttributeSyntax.IPV6_SYNTAX.matches(ObjectType.INET6NUM, key)) {
+                    return ObjectType.INET6NUM;
+                } else {
+                    throw new WebApplicationException(Response.status(Response.Status.BAD_REQUEST)
+                            .entity(AbuseContactMapper.mapAbuseContactError("Invalid argument: " + key))
+                            .build());
+                }
+            }
+        }
     }
 }
