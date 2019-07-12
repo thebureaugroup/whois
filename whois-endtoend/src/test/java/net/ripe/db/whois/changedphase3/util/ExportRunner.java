@@ -2,6 +2,7 @@ package net.ripe.db.whois.changedphase3.util;
 
 import net.ripe.db.whois.common.rpsl.RpslObject;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -151,11 +152,7 @@ public class ExportRunner extends AbstractScenarioRunner {
             }
             return sb.toString();
         } finally {
-            if (in != null) {
-                try {
-                    in.close();
-                } catch( IOException exc) {}
-            }
+            IOUtils.closeQuietly(in);
         }
     }
 
