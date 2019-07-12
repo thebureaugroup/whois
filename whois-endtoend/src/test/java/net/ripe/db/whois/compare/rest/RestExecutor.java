@@ -72,10 +72,9 @@ public class RestExecutor implements ComparisonExecutor {
 
     public static String compactXmlNaive(final String response) {
         final BufferedReader br = new BufferedReader(new StringReader(response));
-        final StringBuffer sb = new StringBuffer();
-        String line;
-
+        final StringBuilder sb = new StringBuilder();
         try {
+            String line;
             while ((line = br.readLine()) != null) {
                 sb.append(line.trim());
             }

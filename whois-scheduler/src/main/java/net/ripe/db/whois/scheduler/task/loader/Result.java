@@ -6,7 +6,7 @@ public class Result {
     private AtomicInteger success = new AtomicInteger(0);
     private AtomicInteger failPass1 = new AtomicInteger(0);
     private AtomicInteger failPass2 = new AtomicInteger(0);
-    private final StringBuffer text = new StringBuffer();
+    private final StringBuilder text = new StringBuilder();
 
     public void addSuccess() {
         success.incrementAndGet();

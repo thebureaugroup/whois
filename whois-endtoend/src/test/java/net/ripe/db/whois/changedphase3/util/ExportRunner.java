@@ -144,8 +144,7 @@ public class ExportRunner extends AbstractScenarioRunner {
             in = new BufferedReader(new InputStreamReader(
                     new GZIPInputStream(new FileInputStream(filename))));
 
-            StringBuffer sb = new StringBuffer();
-
+            final StringBuilder sb = new StringBuilder();
             String chunk;
             while ((chunk = in.readLine()) != null) {
                 sb.append(chunk);
