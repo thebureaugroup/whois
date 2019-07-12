@@ -28,12 +28,11 @@ public class RpslObjectFileReader implements Iterable<String> {
         private String nextObject;
 
         public StringIterator(final String fileName) {
-            try {
-                InputStream in = new FileInputStream(fileName);
-                if (fileName.endsWith(".gz")) {
-                    in = new GZIPInputStream(in);
-                }
-                bufferedReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.ISO_8859_1));        // split files are written as latin-1
+            try (final InputStream in = new FileInputStream(fileName)) {
+                bufferedReader = new BufferedReader(
+                                    new InputStreamReader(
+                                        fileName.endsWith(".gz") ? new GZIPInputStream(in) : in,
+                                        StandardCharsets.ISO_8859_1));        // split files are written as latin-1
             } catch (IOException e) {
                 throw new IllegalArgumentException(fileName, e);
             }

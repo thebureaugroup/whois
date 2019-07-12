@@ -85,14 +85,12 @@ public class ExportFileWriter {
     private Writer getWriter(final String filename) throws IOException {
         Writer writer = writerMap.get(filename);
         if (writer == null) {
-            final File file = new File(baseDir, filename + ".gz");
-            final FileOutputStream fileOutputStream = new FileOutputStream(file);
-            try {
+            try (FileOutputStream fileOutputStream = new FileOutputStream(new File(baseDir, filename + ".gz"))) {
                 writer = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(fileOutputStream), Charsets.ISO_8859_1));
                 writer.write(QueryMessages.termsAndConditionsDump().toString());
                 writerMap.put(filename, writer);
             } catch (IOException e) {
-                fileOutputStream.close();
+                // do nothing
             }
         }
 

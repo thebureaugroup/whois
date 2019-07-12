@@ -142,9 +142,9 @@ public class SyncUpdateBuilder {
                 connection.setDoInput(true);
                 connection.setDoOutput(true);
 
-                final Writer writer = new OutputStreamWriter(connection.getOutputStream());
-                writer.write(body);
-                writer.close();
+                try (final Writer writer = new OutputStreamWriter(connection.getOutputStream())) {
+                    writer.write(body);
+                }
 
                 if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
                     throw new IllegalStateException(connection.getResponseMessage());

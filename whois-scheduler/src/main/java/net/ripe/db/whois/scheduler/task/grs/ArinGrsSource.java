@@ -70,10 +70,7 @@ class ArinGrsSource extends GrsSource {
 
     @Override
     public void handleObjects(final File file, final ObjectHandler handler) throws IOException {
-        ZipFile zipFile = null;
-
-        try {
-            zipFile = new ZipFile(file, ZipFile.OPEN_READ);
+        try (final ZipFile zipFile = new ZipFile(file, ZipFile.OPEN_READ)) {
             final ZipEntry zipEntry = zipFile.getEntry(zipEntryName);
             if (zipEntry == null) {
                 logger.error("Zipfile {} does not contain dump {}", file, zipEntryName);
@@ -150,10 +147,6 @@ class ArinGrsSource extends GrsSource {
                     return null;
                 }
             });
-        } finally {
-            if (zipFile != null) {
-                zipFile.close();
-            }
         }
     }
 

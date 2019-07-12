@@ -11,7 +11,6 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.zip.GZIPInputStream;
 
@@ -146,12 +145,8 @@ public class AttributeParserTestIntegration {
 
     private void parseAttributes(final String file, final AttributeType[] types) throws IOException {
         try {
-            InputStream inputStream = new GZIPInputStream((new FileInputStream(file)));
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-
-            StringBuilder builder = new StringBuilder();
-
-            try {
+            try (final BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream((new FileInputStream(file)))))) {
+                final StringBuilder builder = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (line.length() == 0) {
@@ -176,8 +171,6 @@ public class AttributeParserTestIntegration {
                         builder.append('\n');
                     }
                 }
-            } finally {
-                reader.close();
             }
         } catch (FileNotFoundException ignored) {
             // ignored
