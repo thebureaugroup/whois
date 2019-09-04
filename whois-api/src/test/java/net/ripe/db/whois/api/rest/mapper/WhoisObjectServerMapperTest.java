@@ -2,6 +2,7 @@ package net.ripe.db.whois.api.rest.mapper;
 
 import com.google.common.collect.Lists;
 import net.ripe.db.whois.api.rest.ReferencedTypeResolver;
+import net.ripe.db.whois.api.rest.SourceResolver;
 import net.ripe.db.whois.api.rest.domain.Attribute;
 import net.ripe.db.whois.api.rest.domain.Link;
 import net.ripe.db.whois.api.rest.domain.Parameters;
@@ -17,28 +18,29 @@ import net.ripe.db.whois.common.domain.serials.Operation;
 import net.ripe.db.whois.common.rpsl.AttributeType;
 import net.ripe.db.whois.common.rpsl.ObjectType;
 import net.ripe.db.whois.common.rpsl.RpslObject;
-import net.ripe.db.whois.query.VersionDateTime;
+import net.ripe.db.whois.common.dao.VersionDateTime;
 import net.ripe.db.whois.query.domain.DeletedVersionResponseObject;
 import net.ripe.db.whois.query.domain.TagResponseObject;
 import net.ripe.db.whois.query.domain.VersionResponseObject;
-import org.joda.time.LocalDateTime;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static net.ripe.db.whois.common.domain.CIString.ciString;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +58,8 @@ public class WhoisObjectServerMapperTest {
     private ManagedAttributeSearch managedAttributeSearch;
     @Mock
     private Parameters parameters;
+    @Mock
+    private SourceResolver sourceResolver;
 
     private WhoisObjectServerMapper whoisObjectServerMapper;
     private WhoisObjectMapper whoisObjectMapper;
@@ -63,11 +67,12 @@ public class WhoisObjectServerMapperTest {
     @Before
     public void setup() {
         whoisObjectMapper = new WhoisObjectMapper(BASE_URL, new AttributeMapper[]{
-                new FormattedServerAttributeMapper(referencedTypeResolver, BASE_URL),
+                new FormattedServerAttributeMapper(referencedTypeResolver, sourceResolver, BASE_URL),
                 new FormattedClientAttributeMapper()
         });
         whoisObjectServerMapper = new WhoisObjectServerMapper(whoisObjectMapper, resourceHolderSearch, abuseContactSearch, managedAttributeSearch);
         when(parameters.getUnformatted()).thenReturn(Boolean.FALSE);
+        when(sourceResolver.getSource(anyString(), any(CIString.class), anyString())).thenReturn("test");
     }
 
     @Test
@@ -150,11 +155,11 @@ public class WhoisObjectServerMapperTest {
 
     @Test
     public void map_versions() {
-        final DeletedVersionResponseObject deleted = new DeletedVersionResponseObject(new VersionDateTime(new LocalDateTime()), ObjectType.AUT_NUM, "AS102");
+        final DeletedVersionResponseObject deleted = new DeletedVersionResponseObject(new VersionDateTime(LocalDateTime.now()), ObjectType.AUT_NUM, "AS102");
 
         final List<VersionResponseObject> versionInfos = Lists.newArrayList(
-                new VersionResponseObject(2, Operation.UPDATE, 3, new VersionDateTime(new LocalDateTime()), ObjectType.AUT_NUM, "AS102"),
-                new VersionResponseObject(2, Operation.UPDATE, 4, new VersionDateTime(new LocalDateTime()), ObjectType.AUT_NUM, "AS102"));
+                new VersionResponseObject(2, Operation.UPDATE, 3, new VersionDateTime(LocalDateTime.now()), ObjectType.AUT_NUM, "AS102"),
+                new VersionResponseObject(2, Operation.UPDATE, 4, new VersionDateTime(LocalDateTime.now()), ObjectType.AUT_NUM, "AS102"));
 
         final List<WhoisVersion> whoisVersions = whoisObjectServerMapper.mapVersions(Lists.newArrayList(deleted), versionInfos);
 
