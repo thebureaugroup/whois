@@ -3,7 +3,7 @@ package net.ripe.db.whois.update.keycert;
 import net.ripe.db.whois.common.DateTimeProvider;
 import net.ripe.db.whois.common.rpsl.RpslObject;
 import org.apache.commons.io.IOUtils;
-import org.joda.time.LocalDateTime;
+import java.time.LocalDateTime;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -313,8 +313,7 @@ public class PgpPublicKeyWrapperTest {
 
     @Test
     public void isRevoked() {
-        try {
-            PgpPublicKeyWrapper.parse(
+        final PgpPublicKeyWrapper subject = PgpPublicKeyWrapper.parse(
                     RpslObject.parse(
                             "key-cert:       PGPKEY-A48E76B2\n" +
                             "method:         PGP\n" +
@@ -346,10 +345,7 @@ public class PgpPublicKeyWrapperTest {
                             "certif:         -----END PGP PUBLIC KEY BLOCK-----\n" +
                             "mnt-by:         UPD-MNT\n" +
                             "source:         TEST"));
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("The supplied key is revoked"));
-        }
+        assertThat(subject.isRevoked(), is(true));
     }
 
     private String getResource(final String resourceName) throws IOException {
