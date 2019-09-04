@@ -334,6 +334,10 @@ public final class UpdateMessages {
         return new Message(Type.ERROR, "\"assignment-size:\" value must not be greater than the maximum prefix size %s", prefixLength);
     }
 
+    public static Message prefixTooSmall(final int minimumPrefixLength) {
+        return new Message(Type.ERROR, "Minimum prefix size is %s", minimumPrefixLength);
+    }
+
     public static Message tooManyAggregatedByLirInHierarchy() {
         return new Message(Type.ERROR, "Only two levels of hierarchy allowed with status AGGREGATED-BY-LIR");
     }
@@ -537,13 +541,8 @@ public final class UpdateMessages {
                         + "This must reference a ROLE object with an \"abuse-mailbox:\"");
     }
 
-    public static Message abuseMailboxReferenced(final CharSequence role) {
-        return new Message(Type.ERROR, "There is an organisation referencing role %s's abuse-mailbox", role);
-    }
-
-    public static Message abuseMailboxCantBeAdded() {
-        return new Message(Type.ERROR, "\"abuse-mailbox:\" can only be added to ROLE objects intended to be " +
-                "referenced through the \"abuse-c:\" attribute in ORGANISATION, INET(6)NUM and AUT-NUM objects.");
+    public static Message abuseMailboxReferenced(final CharSequence role, final ObjectType objectType) {
+        return new Message(Type.ERROR, "There is an %s referencing role %s's abuse-mailbox", objectType.getName(), role);
     }
 
     public static Message keyNotFound(final String keyId) {
@@ -614,12 +613,12 @@ public final class UpdateMessages {
         return new Message(Type.ERROR, "This resource object must be created with a sponsoring-org attribute");
     }
 
-    public static Message valueChangedDueToLatin1Conversion(final String attributeName) {
-        return new Message(Type.WARNING, "Attribute \"%s\" value changed due to conversion into the ISO-8859-1 (Latin-1) character set", attributeName);
+    public static Message valueChangedDueToLatin1Conversion() {
+        return new Message(Type.WARNING, "Value changed due to conversion into the ISO-8859-1 (Latin-1) character set");
     }
 
-    public static Message replacedNonBreakSpaces() {
-        return new Message(Type.WARNING, "Non-break spaces were replaced with regular spaces");
+    public static Message valueChangedDueToLatin1Conversion(final String attributeName) {
+        return new Message(Type.WARNING, "Invalid character(s) were substituted in attribute \"%s\" value", attributeName);
     }
 
     public static Message oldPasswordsRemoved() {
@@ -628,6 +627,10 @@ public final class UpdateMessages {
 
     public static Message creatingRipeMaintainerForbidden() {
         return new Message(Type.ERROR, "You cannot create a RIPE NCC maintainer");
+    }
+
+    public static Message updatingRipeMaintainerSSOForbidden() {
+        return new Message(Type.ERROR, "You cannot update SSO auth attribute(s), because the maintainer is synchronised from the LIR Portal");
     }
 
     public static Message netnameCannotBeChanged() {
