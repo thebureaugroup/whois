@@ -22,7 +22,7 @@ import net.ripe.db.whois.api.rest.client.RestClientUtils;
 import net.ripe.db.whois.common.IntegrationTest;
 import net.ripe.db.whois.query.support.TestWhoisLog;
 import org.hamcrest.Matchers;
-import org.joda.time.LocalDateTime;
+import java.time.LocalDateTime;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -44,7 +44,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -52,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -223,7 +223,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(ip.getName(), is("TEST-NET-NAME"));
         assertThat(ip.getType(), is("OTHER"));
         assertThat(ip.getObjectClassName(), is("ip network"));
-        assertThat(ip.getParentHandle(), is("IANA-BLK"));
+        assertThat(ip.getParentHandle(), is("0.0.0.0 - 255.255.255.255"));
 
         assertCommon(ip);
 
@@ -274,7 +274,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(ip.getEndAddress(), is("192.255.255.255"));
         assertThat(ip.getName(), is("TEST-NET-NAME"));
         assertThat(ip.getLang(), is(nullValue()));
-        assertThat(ip.getParentHandle(), is("IANA-BLK"));
+        assertThat(ip.getParentHandle(), is("0.0.0.0 - 255.255.255.255"));
     }
 
     @Test
@@ -302,7 +302,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(ip.getEndAddress(), is("192.255.255.255"));
         assertThat(ip.getName(), is("TEST-NET-NAME"));
         assertThat(ip.getLang(), is(nullValue()));
-        assertThat(ip.getParentHandle(), is("IANA-BLK"));
+        assertThat(ip.getParentHandle(), is("0.0.0.0 - 255.255.255.255"));
 
         final List<Notice> notices = ip.getNotices();
         assertThat(notices, hasSize(4));
@@ -340,7 +340,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(ip.getStartAddress(), is("192.0.0.0"));
         assertThat(ip.getEndAddress(), is("192.255.255.255"));
         assertThat(ip.getName(), is("TEST-NET-NAME"));
-        assertThat(ip.getParentHandle(), is("IANA-BLK"));
+        assertThat(ip.getParentHandle(), is("0.0.0.0 - 255.255.255.255"));
 
         final List<Notice> notices = ip.getNotices();
         assertThat(notices, hasSize(4));
@@ -427,7 +427,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(ip.getEndAddress(), is("192.132.77.255"));
         assertThat(ip.getName(), is("TEST-NET-NAME"));
         assertThat(ip.getLang(), is(nullValue()));
-        assertThat(ip.getParentHandle(), is("IANA-BLK"));
+        assertThat(ip.getParentHandle(), is("0.0.0.0 - 255.255.255.255"));
     }
 
     @Test
@@ -495,7 +495,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(ip.getName(), is("RIPE-NCC"));
         assertThat(ip.getType(), is("ASSIGNED PA"));
         assertThat(ip.getObjectClassName(), is("ip network"));
-        assertThat(ip.getParentHandle(), is("IANA-BLK"));
+        assertThat(ip.getParentHandle(), is("::/0"));
 
         assertCommon(ip);
 
@@ -542,7 +542,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(ip.getStartAddress(), is("2001:2002:2003::"));
         assertThat(ip.getEndAddress(), is("2001:2002:2003:ffff:ffff:ffff:ffff:ffff"));
         assertThat(ip.getName(), is("RIPE-NCC"));
-        assertThat(ip.getParentHandle(), is("IANA-BLK"));
+        assertThat(ip.getParentHandle(), is("::/0"));
     }
 
     @Test
@@ -569,7 +569,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(ip.getStartAddress(), is("2001:2002:2003::"));
         assertThat(ip.getEndAddress(), is("2001:2002:2003:ffff:ffff:ffff:ffff:ffff"));
         assertThat(ip.getName(), is("RIPE-NCC"));
-        assertThat(ip.getParentHandle(), is("IANA-BLK"));
+        assertThat(ip.getParentHandle(), is("::/0"));
     }
 
     @Test
@@ -825,7 +825,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
                     .get(Autnum.class);
             fail();
         } catch (BadRequestException e) {
-            assertErrorTitle(e, "unknown type");
+            assertErrorTitle(e, "unknown objectType");
         }
     }
 
@@ -894,6 +894,9 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(autnum.getName(), equalTo("AS100-AS200"));
         assertThat(autnum.getType(), equalTo("DIRECT ALLOCATION"));
         assertThat(autnum.getObjectClassName(), is("autnum"));
+
+        assertThat(autnum.getEntitySearchResults().get(0).getHandle(), is("ORG-TEST1-TEST"));
+        assertThat(autnum.getEntitySearchResults().get(0).getRoles(), contains(Role.REGISTRANT));
     }
 
     @Test
@@ -915,6 +918,9 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
         assertThat(autnum.getName(), equalTo("AS0-AS6"));
         assertThat(autnum.getType(), equalTo("DIRECT ALLOCATION"));
         assertThat(autnum.getObjectClassName(), is("autnum"));
+
+        assertThat(autnum.getEntitySearchResults().get(0).getHandle(), is("ORG-TEST1-TEST"));
+        assertThat(autnum.getEntitySearchResults().get(0).getRoles(), contains(Role.REGISTRANT));
     }
 
     @Test
@@ -1005,13 +1011,20 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
                 .request(MediaType.APPLICATION_JSON_TYPE)
                 .get(Autnum.class);
 
-        assertThat(autnum.getEntitySearchResults().get(0).getHandle(), is("OWNER-MNT"));
-        assertThat(autnum.getEntitySearchResults().get(1).getHandle(), is("TP1-TEST"));
-        assertThat(autnum.getEntitySearchResults().get(2).getHandle(), is("AB-TEST"));
-        assertThat(autnum.getEntitySearchResults().get(2).getRoles(), contains(Role.ABUSE));
-        assertThat(autnum.getEntitySearchResults().get(2).getVCardArray(), hasSize(2));
-        assertThat(autnum.getEntitySearchResults().get(2).getVCardArray().get(0).toString(), is("vcard"));
-        assertThat(autnum.getEntitySearchResults().get(2).getVCardArray().get(1).toString(), is("" +
+        final List<Entity> entities = autnum.getEntitySearchResults();
+        assertThat(entities, hasSize(4));
+
+        assertThat(entities.get(0).getHandle(), is("ORG-TO2-TEST"));
+        assertThat(entities.get(0).getRoles(), contains(Role.REGISTRANT));
+        assertThat(entities.get(1).getHandle(), is("OWNER-MNT"));
+        assertThat(entities.get(1).getRoles(), contains(Role.REGISTRANT));
+        assertThat(entities.get(2).getHandle(), is("TP1-TEST"));
+        assertThat(entities.get(2).getRoles(), containsInAnyOrder(Role.ADMINISTRATIVE, Role.TECHNICAL));
+        assertThat(entities.get(3).getHandle(), is("AB-TEST"));
+        assertThat(entities.get(3).getRoles(), contains(Role.ABUSE));
+        assertThat(entities.get(3).getVCardArray(), hasSize(2));
+        assertThat(entities.get(3).getVCardArray().get(0).toString(), is("vcard"));
+        assertThat(entities.get(3).getVCardArray().get(1).toString(), is("" +
                 "[[version, {}, text, 4.0], " +
                 "[fn, {}, text, Abuse Contact], " +
                 "[kind, {}, text, group], " +
@@ -1050,13 +1063,18 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
                 .request(MediaType.APPLICATION_JSON_TYPE)
                 .get(Autnum.class);
 
-        assertThat(autnum.getEntitySearchResults().get(0).getHandle(), is("OWNER-MNT"));
-        assertThat(autnum.getEntitySearchResults().get(1).getHandle(), is("TP1-TEST"));
-        assertThat(autnum.getEntitySearchResults().get(2).getHandle(), is("AB-TEST"));
-        assertThat(autnum.getEntitySearchResults().get(2).getRoles(), contains(Role.ABUSE));
-        assertThat(autnum.getEntitySearchResults().get(2).getVCardArray(), hasSize(2));
-        assertThat(autnum.getEntitySearchResults().get(2).getVCardArray().get(0).toString(), is("vcard"));
-        assertThat(autnum.getEntitySearchResults().get(2).getVCardArray().get(1).toString(), is("" +
+        final List<Entity> entities = autnum.getEntitySearchResults();
+        assertThat(entities, hasSize(4));
+
+        assertThat(entities.get(0).getHandle(), is("ORG-TEST1-TEST"));
+        assertThat(entities.get(0).getRoles(), contains(Role.REGISTRANT));
+        assertThat(entities.get(1).getHandle(), is("OWNER-MNT"));
+        assertThat(entities.get(2).getHandle(), is("TP1-TEST"));
+        assertThat(entities.get(3).getHandle(), is("AB-TEST"));
+        assertThat(entities.get(3).getRoles(), contains(Role.ABUSE));
+        assertThat(entities.get(3).getVCardArray(), hasSize(2));
+        assertThat(entities.get(3).getVCardArray().get(0).toString(), is("vcard"));
+        assertThat(entities.get(3).getVCardArray().get(1).toString(), is("" +
                 "[[version, {}, text, 4.0], " +
                 "[fn, {}, text, Abuse Contact], " +
                 "[kind, {}, text, group], " +
@@ -1078,7 +1096,7 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
             fail();
         } catch (BadRequestException e) {
             final Entity response = e.getResponse().readEntity(Entity.class);
-            assertThat(response.getErrorTitle(), is("unknown type"));
+            assertThat(response.getErrorTitle(), is("unknown objectType"));
         }
     }
 
@@ -1138,26 +1156,30 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
                 "status:       OTHER\n" +
                 "mnt-by:       OWNER-MNT\n" +
                 "source:       TEST");
-        databaseHelper.addObject("" +
-                "inetnum:      192.0.0.0 - 192.0.0.255\n" +
-                "netname:      TEST-NET-NAME\n" +
-                "descr:        TEST network\n" +
-                "country:      NL\n" +
-                "tech-c:       TP1-TEST\n" +
-                "status:       OTHER\n" +
-                "mnt-by:       OWNER-MNT\n" +
-                "source:       TEST");
+
         ipTreeUpdater.rebuild();
 
         final Ip ip = createResource("ip/192.0.0.128")
                 .request(MediaType.APPLICATION_JSON_TYPE)
                 .get(Ip.class);
 
-        assertThat(ip.getEntitySearchResults().get(0).getHandle(), is("AB-TEST"));
-        assertThat(ip.getEntitySearchResults().get(0).getRoles(), contains(Role.ABUSE));
-        assertThat(ip.getEntitySearchResults().get(0).getVCardArray(), hasSize(2));
-        assertThat(ip.getEntitySearchResults().get(0).getVCardArray().get(0).toString(), is("vcard"));
-        assertThat(ip.getEntitySearchResults().get(0).getVCardArray().get(1).toString(), is("" +
+        final List<Entity> entities = ip.getEntitySearchResults();
+        assertThat(entities, hasSize(4));
+
+        assertThat(entities.get(0).getHandle(), is("ORG-TO2-TEST"));
+        assertThat(entities.get(0).getRoles().get(0), is(Role.REGISTRANT));
+
+        assertThat(entities.get(2).getHandle(), is("TP1-TEST"));
+        assertThat(entities.get(2).getRoles(), contains(Role.TECHNICAL));
+
+        assertThat(entities.get(1).getHandle(), is("OWNER-MNT"));
+        assertThat(entities.get(1).getRoles().get(0), is(Role.REGISTRANT));
+
+        assertThat(entities.get(3).getHandle(), is("AB-TEST"));
+        assertThat(entities.get(3).getRoles(), contains(Role.ABUSE));
+        assertThat(entities.get(3).getVCardArray(), hasSize(2));
+        assertThat(entities.get(3).getVCardArray().get(0).toString(), is("vcard"));
+        assertThat(entities.get(3).getVCardArray().get(1).toString(), is("" +
                 "[[version, {}, text, 4.0], " +
                 "[fn, {}, text, Abuse Contact], " +
                 "[kind, {}, text, group], " +
@@ -1238,20 +1260,9 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
     }
 
     @Test
-    public void lookup_entity_multiple_result_throw_error() {
-
+    public void lookup_for_primary_key_for_entity() {
         databaseHelper.addObject("" +
-                "person:        MNTNER_PERSON\n" +
-                "address:       Singel 258\n" +
-                "phone:         +31-1234567890\n" +
-                "e-mail:        noreply@ripe.net\n" +
-                "mnt-by:        OWNER-MNT\n" +
-                "nic-hdl:       TP2-MULTI\n" +
-                "remarks:       remark\n" +
-                "source:        TEST");
-
-        databaseHelper.addObject("" +
-                "mntner:        TP2-MULTI\n" +
+                "mntner:        AZRT\n" +
                 "descr:         Owner Maintainer\n" +
                 "admin-c:       TP1-TEST\n" +
                 "upd-to:        noreply@ripe.net\n" +
@@ -1260,16 +1271,31 @@ public class WhoisRdapServiceTestIntegration extends AbstractIntegrationTest {
                 "referral-by:   OWNER-MNT\n" +
                 "source:        TEST");
 
-        try {
-          createResource("entity/TP2-MULTI")
-                .request(MediaType.APPLICATION_JSON_TYPE)
-                .get(Entity.class);
+        databaseHelper.addObject("" +
+                "role:          AZRT ABUSE\n" +
+                "address:       Singel\n" +
+                "e-mail:        dbtest@ripe.net\n" +
+                "admin-c:       PP1-TEST\n" +
+                "tech-c:        PP1-TEST\n" +
+                "nic-hdl:       FR2-TEST\n" +
+                "mnt-by:        OWNER-MNT\n" +
+                "source:        TEST");
 
-          fail();                                                                       // TODO: multiple matches will be fixed separately
-        } catch (InternalServerErrorException e) {
-            final Entity entity = e.getResponse().readEntity(Entity.class);
-            assertThat(entity.getErrorTitle(), is("Unexpected result size: 2"));
-        }
+        databaseHelper.addObject("" +
+                "role:          AZRT OPS\n" +
+                "address:       Singel\n" +
+                "e-mail:        dbtest@ripe.net\n" +
+                "admin-c:       PP1-TEST\n" +
+                "tech-c:        PP1-TEST\n" +
+                "nic-hdl:       FR3-TEST\n" +
+                "mnt-by:        OWNER-MNT\n" +
+                "source:        TEST");
+
+        Entity entity = createResource("entity/AZRT")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .get(Entity.class);
+
+        assertThat(entity.getHandle(), equalTo("AZRT"));
     }
 
     @Test

@@ -48,7 +48,7 @@ import net.ripe.db.whois.common.rpsl.attrs.AsBlockRange;
 import net.ripe.db.whois.common.rpsl.attrs.AttributeParseException;
 import net.ripe.db.whois.common.rpsl.attrs.DsRdata;
 import net.ripe.db.whois.common.rpsl.attrs.NServer;
-import org.joda.time.LocalDateTime;
+import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
@@ -98,6 +98,7 @@ class RdapObjectMapper {
         CONTACT_ATTRIBUTE_TO_ROLE_NAME.put(TECH_C, Role.TECHNICAL);
         CONTACT_ATTRIBUTE_TO_ROLE_NAME.put(MNT_BY, Role.REGISTRANT);
         CONTACT_ATTRIBUTE_TO_ROLE_NAME.put(ZONE_C, Role.ZONE);
+        CONTACT_ATTRIBUTE_TO_ROLE_NAME.put(ORG, Role.REGISTRANT); // TODO: [MA] both mnt_by and org have same role
     }
 
     private final NoticeFactory noticeFactory;
@@ -227,6 +228,8 @@ class RdapObjectMapper {
         handleLanguageAttribute(rpslObject, ip);
         handleCountryAttribute(rpslObject, ip);
 
+        ip.getEntitySearchResults().addAll(createContactEntities(rpslObject));
+
         return ip;
     }
 
@@ -251,12 +254,11 @@ class RdapObjectMapper {
             throw new IllegalStateException("Couldn't get parent for " + ipInterval.toString());
         }
 
-        final CIString netname = parentRpslObject.getValueOrNullForAttribute(AttributeType.NETNAME);
-        if (netname == null) {
+        if (parentRpslObject == null) {
             throw new IllegalStateException("No parentHandle for " + ipInterval.toString());
         }
 
-        return netname.toString();
+        return parentRpslObject.getKey().toString();
     }
 
     private IpEntry lookupParentIpEntry(final IpInterval ipInterval) {

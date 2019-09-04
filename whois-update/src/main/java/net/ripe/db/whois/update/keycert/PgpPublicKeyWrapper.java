@@ -4,6 +4,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import net.ripe.db.whois.common.DateTimeProvider;
+import net.ripe.db.whois.common.DateUtil;
 import net.ripe.db.whois.common.Latin1Conversion;
 import net.ripe.db.whois.common.rpsl.RpslObject;
 import net.ripe.db.whois.common.rpsl.RpslObjectFilter;
@@ -19,13 +20,13 @@ import org.bouncycastle.openpgp.PGPSignatureSubpacketVector;
 import org.bouncycastle.openpgp.PGPUtil;
 import org.bouncycastle.openpgp.bc.BcPGPPublicKeyRingCollection;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
-import org.joda.time.LocalDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.security.Provider;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -176,7 +177,7 @@ public class PgpPublicKeyWrapper implements KeyWrapper {
         final long validSeconds = masterKey.getValidSeconds();
         if (validSeconds > 0) {
             final int days = Long.valueOf(Long.divideUnsigned(validSeconds, SECONDS_IN_ONE_DAY)).intValue();
-            final LocalDateTime expired = (new LocalDateTime(masterKey.getCreationTime())).plusDays(days);
+            final LocalDateTime expired = (DateUtil.fromDate(masterKey.getCreationTime())).plusDays(days);
             return expired.isBefore(dateTimeProvider.getCurrentDateTime());
         }
 
